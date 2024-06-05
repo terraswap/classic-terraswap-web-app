@@ -651,6 +651,14 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
   }
 
   useEffect(() => {
+    setValue(Key.feeValue, "")
+  }, [formData.feeSymbol, setValue])
+
+  useEffect(() => {
+    trigger(Key.value1)
+  }, [trigger, formData.feeValue])
+
+  useEffect(() => {
     resetField(Key.value1)
     resetField(Key.value2)
   }, [type, resetField])
