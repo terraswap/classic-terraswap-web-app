@@ -102,12 +102,11 @@ export const validate = {
       tax = calcTax(amount, taxCap, taxRate)
     }
 
-    if (
-      maxFee === "" ||
-      maxFee === undefined ||
-      feeValue === undefined ||
-      gt(feeValue, maxFee)
-    ) {
+    if (!maxFee || !feeValue) {
+      return " "
+    }
+
+    if (maxFee && feeValue && gt(feeValue, maxFee)) {
       return `You don't have enough balance to pay for ${formatAsset(
         feeValue,
         feeSymbol
