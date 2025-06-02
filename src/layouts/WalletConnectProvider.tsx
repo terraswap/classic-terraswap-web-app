@@ -1,64 +1,40 @@
-import {
-  useWallet,
-  WalletProvider,
-  WalletControllerChainOptions,
-} from "@terra-money/wallet-provider"
-import React, { PropsWithChildren, useEffect, useMemo, useState } from "react"
-import networks from "constants/networks"
+import React, { PropsWithChildren, useEffect, useState } from "react"
 import { useModal } from "components/Modal"
 import ConnectListModal from "./ConnectListModal"
 import { ConnectModalProvider } from "hooks/useConnectModal"
-import { LCDClient } from "@terra-money/terra.js"
 import { getChainOptions } from "libs/getChainOptions"
+import CosmeWalletProvider, {
+  useWallet,
+  useLCD,
+  useLCDClient,
+} from "libs/CosmesWalletProvider"
 
 const WalletConnectProvider: React.FC<PropsWithChildren<{}>> = ({
   children,
 }) => {
   const modal = useModal()
-  const [chainOptions, setChainOptions] =
-    useState<WalletControllerChainOptions>()
+  const [chainOptions, setChainOptions] = useState<any>()
 
   useEffect(() => {
     getChainOptions().then((res) => setChainOptions(res))
   }, [])
 
   return chainOptions ? (
-    <WalletProvider
-      walletConnectChainIds={chainOptions.walletConnectChainIds}
-      defaultNetwork={chainOptions.walletConnectChainIds[2]}
+    <CosmeWalletProvider
+      walletConnectChainIds={chainOptions.walletConnectChainIds || {}}
+      defaultNetwork={chainOptions.defaultNetwork?.chainID || "columbus-5"}
       connectorOpts={{ bridge: "https://walletconnect.terra.dev/" }}
     >
       <ConnectModalProvider value={modal}>
         <ConnectListModal {...modal} isCloseBtn />
         {children}
       </ConnectModalProvider>
-    </WalletProvider>
+    </CosmeWalletProvider>
   ) : (
     <></>
   )
 }
 export default WalletConnectProvider
 
-/* hooks */
-export const useLCD = () => {
-  const { network } = useWallet()
-  const networkInfo = networks[network.chainID]
-  return networkInfo?.lcd
-}
-
-export const useLCDClient = () => {
-  const { network } = useWallet()
-  const networkInfo = useMemo(() => networks[network.chainID], [network])
-  const terra = useMemo(
-    () =>
-      new LCDClient({
-        URL: networkInfo?.lcd,
-        chainID: network.chainID,
-        gasAdjustment: 2,
-        isClassic: true,
-      }),
-    [network, networkInfo]
-  )
-
-  return useMemo(() => ({ terra }), [terra])
-}
+// Re-export hooks from CosmeWalletProvider
+export { useWallet, useLCD, useLCDClient }

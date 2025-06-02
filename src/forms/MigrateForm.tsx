@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import styled from "styled-components"
 import Container from "components/Container"
 import { SubmitHandler, useForm } from "react-hook-form"
@@ -22,22 +22,31 @@ import useBalance from "rest/useBalance"
 import { times, ceil, div, lt, lte, floor } from "libs/math"
 import useGasPrice from "rest/useGasPrice"
 import { hasTaxToken } from "helpers/token"
-import { Coins, CreateTxOptions, Fee } from "@terra-money/terra.js"
 import { Type } from "pages/Swap"
 import usePool from "rest/usePool"
 import SvgArrow from "images/arrow.svg"
 import Button from "components/Button"
 import MESSAGE from "lang/MESSAGE.json"
 import useAPI from "rest/useAPI"
-import { TxResult, useWallet } from "@terra-money/wallet-provider"
 import iconReload from "images/icon-reload.svg"
 import { useLCDClient } from "layouts/WalletConnectProvider"
+import { useWallet } from "../layouts/WalletConnectProvider"
 import { useContractsAddress } from "hooks/useContractsAddress"
 import Disclaimer from "components/MigrationDisclaimer"
 import styles from "./SwapFormGroup.module.scss"
 import { calcTax } from "./formHelpers"
 import { SettingValues } from "../components/Settings"
 import useLocalStorage from "libs/useLocalStorage"
+import {
+  TendermintAbciTxResult as TxResult,
+  CosmosBaseV1beta1Coin as Coin,
+} from "@goblinhunt/cosmes/protobufs"
+
+// Define a simple coin interface for internal use
+interface SimpleCoin {
+  denom: string
+  amount: string
+}
 
 enum Key {
   value1 = "value1",
@@ -294,7 +303,7 @@ const MigrateForm = ({ type }: { type?: Type }) => {
   const { gasPrice } = useGasPrice(formData[Key.feeSymbol])
   const getTax = useCallback(
     async (data: { token: string; amount: string }[]) => {
-      const newTax = new Coins()
+      const newTax: Coin[] = []
 
       const taxRate = await loadTaxRate()
       await Promise.all(
@@ -302,7 +311,10 @@ const MigrateForm = ({ type }: { type?: Type }) => {
           if (token && hasTaxToken(token) && taxRate && amount) {
             const taxCap = await loadTaxInfo(token)
             const calculatedTax = calcTax(amount, taxCap, taxRate)
-            newTax.set(token, calculatedTax)
+            newTax.push({
+              denom: token,
+              amount: calculatedTax,
+            } as Coin)
           }
         })
       )
@@ -465,31 +477,15 @@ const MigrateForm = ({ type }: { type?: Type }) => {
           return Array.isArray(msg) ? msg[0] : msg
         })
 
-        const txOptions: CreateTxOptions = {
+        const txOptions = {
           msgs: [...withdrawMsgs, ...provideMsgs],
           memo: undefined,
           gasPrices: `${gasPrice}${getSymbol(feeSymbol || "")}`,
         }
 
-        const signMsg = await terra.tx.create(
-          [{ address: walletAddress }],
-          txOptions
-        )
+        const feeEstimate = await wallet.estimateFee(txOptions)
 
-        const taxes = await getTax([
-          { token: poolContract1, amount: calculatedAmounts[0] },
-          { token: poolContract2, amount: calculatedAmounts[1] },
-        ])
-
-        const feeCoins = signMsg.auth_info.fee.amount.add(taxes)
-
-        const extensionResult = await wallet.post(
-          {
-            ...txOptions,
-            fee: new Fee(signMsg.auth_info.fee.gas_limit, feeCoins),
-          },
-          walletAddress
-        )
+        const extensionResult = await wallet.post(txOptions, feeEstimate)
 
         if (extensionResult) {
           setResult(extensionResult)

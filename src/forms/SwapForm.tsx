@@ -32,7 +32,6 @@ import { TooltipIcon } from "components/Tooltip"
 import Tooltip from "lang/Tooltip.json"
 import useGasPrice from "rest/useGasPrice"
 import { hasTaxToken } from "helpers/token"
-import { Coins, CreateTxOptions, Fee, Numeric } from "@terra-money/terra.js"
 import { Type } from "pages/Swap"
 import usePool from "rest/usePool"
 import { insertIf } from "libs/utils"
@@ -43,17 +42,20 @@ import Button from "components/Button"
 import MESSAGE from "lang/MESSAGE.json"
 import SwapConfirm from "./SwapConfirm"
 import useAPI from "rest/useAPI"
-import { TxResult, useWallet } from "@terra-money/wallet-provider"
 import iconSettings from "images/icon-settings.svg"
 import iconReload from "images/icon-reload.svg"
 import { useModal } from "components/Modal"
 import Settings, { SettingValues } from "components/Settings"
 import useLocalStorage from "libs/useLocalStorage"
 import useAutoRouter from "rest/useAutoRouter"
-import { useLCDClient } from "layouts/WalletConnectProvider"
+import { useLCDClient, useWallet } from "../layouts/WalletConnectProvider"
 import { useContractsAddress } from "hooks/useContractsAddress"
 import WarningModal from "components/Warning"
 import Disclaimer from "components/DisclaimerAgreement"
+import { CosmosTxV1beta1GetTxResponse as GetTxResponse } from "@goblinhunt/cosmes/protobufs"
+import BigNumber from "bignumber.js"
+import { UnsignedTx } from "@goblinhunt/cosmes/wallet"
+import { MsgExecuteContract } from "@goblinhunt/cosmes/client"
 
 enum Key {
   value1 = "value1",
@@ -334,7 +336,7 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
     balance1
   )
 
-  const [tax, setTax] = useState<Coins>(new Coins())
+  const [tax, setTax] = useState<Coin[]>([])
 
   const spread = useMemo(() => {
     return tokenInfo2 && !isAutoRouterLoading && poolResult?.estimated
@@ -386,7 +388,7 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
         })
       : "0"
 
-    const taxs = tax.filter((coin) => !coin.amount.equals(0))
+    const taxs = tax.filter((coin) => Number(coin.amount) > 0)
 
     return [
       ...insertIf(type === Type.SWAP, {
@@ -447,9 +449,9 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
           </Count>
         ),
       },
-      ...insertIf(taxs.toArray().length > 0, {
+      ...insertIf(taxs.length > 0, {
         title: `Tax`,
-        content: taxs.toArray().map((coin, index) => {
+        content: taxs.map((coin: Coin, index: number) => {
           return index === 0 ? (
             <Count symbol={coin.denom}>{lookup(coin.amount.toString())}</Count>
           ) : (
@@ -512,77 +514,6 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
   ])
 
   const { gasPrice } = useGasPrice(formData[Key.feeSymbol])
-  const getTax = useCallback(
-    async ({
-      value1,
-      value2,
-      token1,
-      token2,
-    }: {
-      value1?: string
-      value2?: string
-      token1?: string
-      token2?: string
-    }) => {
-      let newTax = tax
-
-      newTax.map((coin) => {
-        if (
-          !(
-            coin.denom === token1 ||
-            (type === Type.PROVIDE && coin.denom === token2)
-          )
-        ) {
-          newTax.set(coin.denom, 0)
-        }
-
-        return true
-      })
-
-      const taxRate = await loadTaxRate()
-      if (token1 && hasTaxToken(token1) && taxRate && value1) {
-        const taxCap1 = await loadTaxInfo(token1)
-        const tax1 = calcTax(toAmount(value1), taxCap1, taxRate)
-        newTax.set(token1, tax1)
-      }
-      if (
-        type === Type.PROVIDE &&
-        token2 &&
-        hasTaxToken(token2) &&
-        taxRate &&
-        value2
-      ) {
-        const taxCap2 = await loadTaxInfo(token2)
-        const tax2 = calcTax(toAmount(value2), taxCap2, taxRate)
-        newTax.set(token2, tax2)
-      }
-      return newTax
-    },
-    [type, loadTaxInfo, loadTaxRate, tax]
-  )
-
-  const isTaxCalculating = useRef<boolean>(false)
-  useEffect(() => {
-    if (isTaxCalculating?.current) {
-      return
-    }
-    isTaxCalculating.current = true
-    getTax({
-      value1: formData[Key.value1],
-      value2: formData[Key.value2],
-      token1: from,
-      token2: to,
-    })
-      .then((value) => {
-        setTax(value)
-      })
-      .catch(() => {
-        setTax(tax)
-      })
-      .finally(() => {
-        isTaxCalculating.current = false
-      })
-  }, [formData, tax, getTax, from, to])
 
   const validateForm = async (
     key: Key.value1 | Key.value2 | Key.feeValue | Key.feeSymbol | Key.load,
@@ -685,33 +616,75 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
 
   const watchCallback = useCallback<WatchObserver<Record<Key, string>>>(
     (data, { name: watchName, value: watchValue, type: eventType }) => {
+      // Skip processing if this is a non-event update for value1/value2
       if (!eventType && [Key.value1, Key.value2].includes(watchName as Key)) {
         return
       }
+
+      // Only process swap-related calculations
       if (type === Type.SWAP) {
-        if ([Key.value1, Key.feeSymbol].includes(watchName as Key)) {
-          setValue(
-            Key.value2,
-            lookup(`${profitableQuery?.simulatedAmount}`, to)
-          )
-          trigger(Key.value2)
-          setIsWarningModalConfirmed(false)
+        // Validate required inputs
+        if (!from || !to) {
+          // console.log('Missing from/to tokens for swap calculation')
+          return
         }
+
+        // Handle value1 or fee symbol changes
+        if ([Key.value1, Key.feeSymbol].includes(watchName as Key)) {
+          const simulatedAmount = profitableQuery?.simulatedAmount
+
+          // Only update value2 if we have a valid simulated amount
+          if (simulatedAmount) {
+            setValue(Key.value2, lookup(`${simulatedAmount}`, to))
+            trigger(Key.value2)
+            setIsWarningModalConfirmed(false)
+          } else if (data[Key.value1] && Number(data[Key.value1]) > 0) {
+            // If we have a value1 but no simulated amount, the router might still be loading
+            // console.log('Waiting for simulation data to calculate value2')
+          }
+        }
+
+        // Handle value2 changes
         if (watchName === Key.value2) {
-          setValue(
-            Key.value1,
-            lookup(
-              div(
-                toAmount(`${data[Key.value2]}`, to),
-                `${profitableQuery?.simulatedAmount}`
-              )
-            )
-          )
-          trigger(Key.value1)
+          const value2 = data[Key.value2]
+          const simulatedAmount = profitableQuery?.simulatedAmount
+
+          if (!value2 || Number(value2) <= 0) {
+            // Clear value1 if value2 is empty or zero
+            setValue(Key.value1, "")
+            return
+          }
+
+          if (simulatedAmount) {
+            try {
+              // Convert value2 to the appropriate amount based on token decimals
+              const amount = toAmount(`${value2}`, to)
+              const simulatedAmountStr = `${simulatedAmount}`
+
+              // Prevent division by zero
+              if (simulatedAmountStr && simulatedAmountStr !== "0") {
+                const result = div(amount, simulatedAmountStr)
+                // Only update if we got a valid result
+                if (result && !isNaN(Number(result))) {
+                  setValue(Key.value1, lookup(result))
+                  trigger(Key.value1)
+                } else {
+                  // console.log('Invalid division result:', result)
+                }
+              } else {
+                // console.log('Cannot divide by zero or empty simulated amount')
+              }
+            } catch (error) {
+              // console.error('Error calculating swap values:', error)
+            }
+          } else {
+            // If we have a value2 but no simulated amount, the router might still be loading
+            // console.log('Waiting for simulation data to calculate value1')
+          }
         }
       }
     },
-    [profitableQuery, setValue, to, trigger, type]
+    [profitableQuery, setValue, to, trigger, type, from]
   )
 
   useEffect(() => {
@@ -832,12 +805,8 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
                   .split("-")
                   .map(
                     (val, idx) =>
-                      Numeric.parse(val)
-                        .mul(
-                          Numeric.parse(
-                            (1 - Number(slippageTolerance)).toString()
-                          )
-                        )
+                      new BigNumber(val)
+                        .multipliedBy(new BigNumber(slippageTolerance))
                         .toFixed(0) + (idx ? poolContract2 : poolContract1)
                   )
                   .join(","),
@@ -845,31 +814,20 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
               },
             }[type] as any
           )
-          msgs = msgs.map((msg: any) => {
-            return Array.isArray(msg) ? msg[0] : msg
-          })
+          msgs = msgs.map(
+            (msg: MsgExecuteContract<any> | MsgExecuteContract<any>[]) => {
+              return Array.isArray(msg) ? msg[0] : msg
+            }
+          ) as MsgExecuteContract<any>[]
         }
 
-        let txOptions: CreateTxOptions = {
+        let txOptions: UnsignedTx = {
           msgs,
-          memo: undefined,
-          gasPrices: `${gasPrice}${getSymbol(feeSymbol || "")}`,
         }
 
-        const signMsg = await terra.tx.create(
-          [{ address: walletAddress }],
-          txOptions
-        )
+        const estimateResult = await wallet.estimateFee(txOptions)
 
-        const fee = signMsg.auth_info.fee.amount.add(tax)
-
-        const extensionResult = await wallet.post(
-          {
-            ...txOptions,
-            fee: new Fee(signMsg.auth_info.fee.gas_limit, fee),
-          },
-          walletAddress
-        )
+        const extensionResult = await wallet.post(txOptions, estimateResult)
 
         if (extensionResult) {
           setResult(extensionResult)
@@ -901,7 +859,7 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
     ]
   )
 
-  const [result, setResult] = useState<TxResult | undefined>()
+  const [result, setResult] = useState<GetTxResponse | undefined>()
   // hotfix: prevent modal closing when virtual keyboard is opened
   const lastWindowWidth = useRef(window.innerWidth)
   useEffect(() => {
@@ -1034,20 +992,7 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
                         })
                         return
                       }
-                      let taxVal = "0"
-                      const taxs = await getTax({
-                        token1: from,
-                        value1: lookup(formData[Key.max1], from),
-                      })
-
-                      taxs.map((tax) => {
-                        if (tax.denom === from) {
-                          taxVal = tax.toData().amount
-                          return false
-                        }
-                        return true
-                      })
-                      let maxBalance = minus(formData[Key.max1], taxVal)
+                      let maxBalance = minus(formData[Key.max1], "0")
                       // fee
                       if (formData[Key.symbol1] === formData[Key.feeSymbol]) {
                         if (gte(maxBalance, formData[Key.feeValue])) {

@@ -1,9 +1,4 @@
-import {
-  NetworkInfo,
-  WalletControllerChainOptions,
-} from "@terra-money/wallet-provider"
-
-type Response = Record<string, NetworkInfo>
+type Response = Record<string, any>
 
 const fallbackData = {
   mainnet: {
@@ -49,9 +44,7 @@ export async function getChainOptions() {
     data = fallbackData
   }
   const chains = Object.values(data)
-  const walletConnectChainIds = chains.reduce<
-    WalletControllerChainOptions["walletConnectChainIds"]
-  >((result, network) => {
+  const walletConnectChainIds = chains.reduce((result, network) => {
     if (typeof network.walletconnectID === "number") {
       result[network.walletconnectID] = network
     } else if (!result[1] && network.name === "mainnet") {
@@ -61,7 +54,7 @@ export async function getChainOptions() {
     }
     return result
   }, {})
-  const chainOptions: WalletControllerChainOptions = {
+  const chainOptions = {
     defaultNetwork: walletConnectChainIds[1],
     walletConnectChainIds,
   }

@@ -4,10 +4,12 @@ import Icon from "../components/Icon"
 import Connected from "./Connected"
 import styles from "./Connect.module.scss"
 import { useAddress, useConnectModal } from "hooks"
+import useConnectedWallet from "hooks/useConnectedWallet"
 
 const Connect = () => {
   const connectModal = useConnectModal()
   const address = useAddress()
+  const connectedWallet = useConnectedWallet()
   const icon = <Icon name="account_balance_wallet" size={16} />
   const handleClick = () => connectModal.open()
 

@@ -11,7 +11,7 @@ import Loading from "components/Loading"
 import { SwapTokenAsset } from "./useSwapSelectToken"
 import { VariableSizeList, ListChildComponentProps } from "react-window"
 import { useContractsAddress } from "hooks/useContractsAddress"
-import { isMobile } from "@terra-money/wallet-controller/utils/browser-check"
+import { isMobile } from "@goblinhunt/cosmes/wallet"
 
 const cx = classNames.bind(styles)
 

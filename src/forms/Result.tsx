@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import React, { useEffect, useRef, useState, useMemo } from "react"
 import classNames from "classnames/bind"
 
 import { MAX_TX_POLLING_RETRY, TX_POLLING_INTERVAL } from "constants/constants"
@@ -15,21 +15,21 @@ import styles from "./Result.module.scss"
 import {
   CreateTxFailed,
   TxFailed,
-  TxResult,
   TxUnspecifiedError,
   UserDenied,
 } from "@terra-dev/wallet-types"
 import { AxiosError } from "axios"
 
-import { useMemo } from "react"
-import {
-  createActionRuleSet,
-  createLogMatcherForActions,
-  getTxCanonicalMsgs,
-} from "@terra-money/log-finder-ruleset"
-import { TxInfo } from "@terra-money/terra.js"
 import { TxDescription } from "@terra-money/react-base-components"
 import { useLCDClient } from "layouts/WalletConnectProvider"
+import {
+  CosmwasmWasmV1MsgExecuteContract as MsgExecuteContract,
+  CosmosTxV1beta1GetTxResponse as TxResult,
+  CosmosBaseAbciV1beta1TxResponse as TxResponse,
+  CosmosTxV1beta1Tx as Tx,
+} from "@goblinhunt/cosmes/protobufs"
+import {} from "@goblinhunt/cosmes/client"
+import { utf8 } from "@goblinhunt/cosmes/codec"
 export interface ResultProps {
   response?: TxResult
   error?:
@@ -41,6 +41,31 @@ export interface ResultProps {
     | Error
   onFailure: () => void
   parserKey: string
+}
+
+// Define a type that matches the structure we need from TxInfo
+interface TxInfo {
+  txhash: string
+  raw_log: string
+  code?: number
+  logs?: Array<{
+    events: Array<{
+      type: string
+      attributes: Array<{
+        key: string
+        value: string
+      }>
+    }>
+  }>
+  height: number // Changed to number to match Terra.js TxInfo
+  gas_wanted?: string
+  gas_used?: string
+  timestamp?: string
+  tx: {
+    value: {
+      msg: any[]
+    }
+  }
 }
 
 const cx = classNames.bind(styles)
@@ -57,19 +82,12 @@ const Result = ({ response, error, onFailure, parserKey }: ResultProps) => {
   const { terra } = useLCDClient()
   const { config } = terra
 
-  const txHash = response?.result?.txhash ?? ""
-  const raw_log = response?.result?.raw_log ?? ""
+  // Extract txhash and raw_log from TxResult
+  // In Cosmes, the structure is different from Terra.js
+  const txHash = response?.txResponse?.txhash || ""
+  const raw_log = response?.txResponse?.rawLog || ""
   /* polling */
-  const [txInfo, setTxInfo] = useState<TxInfo>()
-
-  const matchedMsg = useMemo(() => {
-    if (!txInfo || !network?.name) {
-      return undefined
-    }
-    const actionRules = createActionRuleSet(network?.name)
-    const logMatcher = createLogMatcherForActions(actionRules)
-    return getTxCanonicalMsgs(txInfo, logMatcher)
-  }, [network, txInfo])
+  const [txInfo, setTxInfo] = useState<TxResponse>()
 
   const [status, setStatus] = useState<STATUS>(STATUS.LOADING)
 
@@ -90,18 +108,25 @@ const Result = ({ response, error, onFailure, parserKey }: ResultProps) => {
         return
       }
       try {
-        const res = await terra.tx.txInfo(txHash)
+        // Using the new cosmes client to get transaction info
+        const res = await terra.tx.getTx(txHash)
 
         if (isDestroyed) {
           return
         }
-        if (res?.code) {
-          setTxInfo(res)
+
+        // Ensure res is not null before proceeding
+        if (!res) {
+          throw new Error("Failed to get transaction information")
+        }
+
+        if (res.txResponse?.code && res.txResponse.code !== 0) {
+          setTxInfo(res.txResponse)
           setStatus(STATUS.FAILURE)
           return
         }
-        if (res?.txhash) {
-          setTxInfo(res)
+        if (res.txResponse?.txhash) {
+          setTxInfo(res.txResponse)
           setStatus(STATUS.SUCCESS)
           return
         }
@@ -120,6 +145,12 @@ const Result = ({ response, error, onFailure, parserKey }: ResultProps) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const tx = useMemo(() => {
+    if (!txInfo?.tx?.value) return null
+    const tx = Tx.fromBinary(txInfo.tx.value)
+    return tx
+  }, [txInfo])
 
   /* render */
   const name = {
@@ -158,33 +189,38 @@ const Result = ({ response, error, onFailure, parserKey }: ResultProps) => {
   const content = {
     [STATUS.SUCCESS]: txInfo && (
       <>
-        <div style={{ textAlign: "center", marginTop: 16 }}>
+        {/*<div style={{ textAlign: "center", marginTop: 16 }}>
           <div>
-            {response?.msgs?.map((_, index) => {
-              const msgInfo = matchedMsg?.[index]
+            {tx?.body?.messages?.map((msg, index: number) => {
+              if (!msg || msg.typeUrl !== '/cosmwasm.wasm.v1.MsgExecuteContract') {
+                return <>{msg.typeUrl}</>
+              }
+
+              const executeMsg = MsgExecuteContract.fromBinary(msg.value)
 
               return (
-                <>
-                  {msgInfo
-                    ?.filter((msg) => !!msg?.transformed?.canonicalMsg)
-                    .map((msg) =>
-                      msg?.transformed?.canonicalMsg?.map((str) => (
-                        <div style={{ color: "#5c5c5c", fontSize: 18 }}>
+                <React.Fragment key={index}>
+                        <div key={`${index}`} style={{ color: "#5c5c5c", fontSize: 18 }}>
                           <TxDescription
-                            network={{ ...config, name: network?.name }}
+                            network={{
+                              ...config,
+                              name: network?.name,
+                              // Add required properties for NetworkConfig
+                              URL: network?.lcd || '',
+                              chainID: network?.chainID || '',
+                              gasAdjustment: 1.4
+                            } as any}
                             config={{ printCoins: 3 }}
                           >
-                            {str}
+                            {utf8.encode(executeMsg.msg)}
                           </TxDescription>
                         </div>
-                      ))
-                    )}
                   <br />
-                </>
+                </React.Fragment>
               )
             })}
           </div>
-        </div>
+        </div>*/}
         <SwapTxInfo txInfo={txInfo} parserKey={parserKey} />
       </>
     ),
@@ -201,7 +237,7 @@ const Result = ({ response, error, onFailure, parserKey }: ResultProps) => {
     [STATUS.FAILURE]: (
       <>
         {txInfo && <SwapTxInfo txInfo={txInfo} parserKey={parserKey} />}
-        <p className={styles.feedback}>{txInfo?.raw_log || message}</p>
+        <p className={styles.feedback}>{txInfo?.rawLog || message}</p>
       </>
     ),
     [STATUS.TIMEOUT]: (

@@ -39,6 +39,7 @@ export const useContractsAddressTokenState = ():
 
   useEffect(() => {
     const load = async () => {
+      if (!url) return
       const response = await fetch(url)
       const json: ContractAddressTokenJSON = await response.json()
       setData(json)

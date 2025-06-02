@@ -32,6 +32,7 @@ interface ExtNetworkConfig {
   chainID: string
   lcd: string
   fcd: string
+  rpc: string
 }
 
 type NetworkConfig = ExtNetworkConfig & LocalNetworkConfig

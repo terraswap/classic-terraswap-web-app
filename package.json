@@ -7,12 +7,11 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@apollo/client": "^3.2.4",
+    "@goblinhunt/cosmes": "^0.0.71-ghunt.17",
     "@terra-dev/wallet-types": "^3.7.0",
     "@terra-money/log-finder": "^1.1.6",
     "@terra-money/log-finder-ruleset": "^3.0.0",
     "@terra-money/react-base-components": "^2.0.0",
-    "@terra-money/terra.js": "3.1.9",
-    "@terra-money/wallet-provider": "^3.9.3",
     "@testing-library/jest-dom": "^5.11.4",
     "@testing-library/react": "^11.1.0",
     "@testing-library/user-event": "^12.1.8",
@@ -26,7 +25,6 @@
     "@types/ramda": "^0.27.29",
     "@types/react": "^18.0.8",
     "@types/react-dom": "^18.0.3",
-    "@types/react-modal": "^3.13.1",
     "@types/react-table": "^7.7.11",
     "@types/react-window": "^1.8.5",
     "axios": "^0.21.1",
@@ -42,7 +40,6 @@
     "lodash": "^4.17.21",
     "moment": "^2.29.1",
     "node-polyfill-webpack-plugin": "^1.1.4",
-    "node-sass": "^7.0.1",
     "numeral": "^2.0.6",
     "prettier": "^2.1.2",
     "querystring": "^0.2.1",
@@ -50,7 +47,7 @@
     "react": "^18.1.0",
     "react-dom": "^18.1.0",
     "react-hook-form": "^7.1.1",
-    "react-modal": "^3.15.1",
+    "react-modal": "^3.16.3",
     "react-query": "^3.34.0",
     "react-router-dom": "^6.3.0",
     "react-scripts": "^5.0.1",
@@ -90,10 +87,12 @@
     ]
   },
   "devDependencies": {
+    "@types/react-modal": "^3.16.3",
     "@types/styled-components": "^5.1.25",
     "@typescript-eslint/eslint-plugin": "^5.22.0",
     "@typescript-eslint/parser": "^5.22.0",
-    "react-app-rewired": "^2.2.1"
+    "react-app-rewired": "^2.2.1",
+    "sass": "^1.89.1"
   },
   "engines": {
     "node": ">=17 <18"

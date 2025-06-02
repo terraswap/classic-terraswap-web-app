@@ -1,4 +1,3 @@
-import { AccAddress } from "@terra-money/terra.js"
 import MESSAGE from "lang/MESSAGE.json"
 import { ceil, gt, gte, lte, min, times, minus, plus } from "libs/math"
 import { getLength, omitEmpty } from "libs/utils"
@@ -6,6 +5,7 @@ import { lookup, format, toAmount, formatAsset, validateDp } from "libs/parse"
 import { hasTaxToken } from "helpers/token"
 import { Type } from "pages/Swap"
 import { Buffer } from "buffer"
+import { bech32 } from "@goblinhunt/cosmes/codec"
 
 /* forms */
 export const step = (decimals = 6) => {
@@ -63,7 +63,11 @@ export const validate = {
       : "",
 
   address: (value: string) =>
-    !value ? "Required" : !AccAddress.validate(value) ? "Invalid address" : "",
+    !value
+      ? "Required"
+      : !bech32.decode(value as `${string}1${string}`)
+      ? "Invalid address"
+      : "",
 
   url: (value: string) => {
     try {

@@ -4,16 +4,23 @@ import TxHash from "./SwapTxHash"
 import { tokenInfos } from "../rest/usePairs"
 import { formatAsset } from "../libs/parse"
 import { SwapAttribute } from "types/swapTx"
-import { TxInfo as ITxInfo } from "@terra-money/terra.js"
+import {
+  CosmosBaseAbciV1beta1TxResponse as TxResponse,
+  CosmosTxV1beta1Tx as Tx,
+} from "@goblinhunt/cosmes/protobufs"
+
+// Define TxInfo interface to replace ITxInfo
 
 interface Props {
-  txInfo: ITxInfo
+  txInfo: TxResponse
   parserKey: string
 }
 
 const TxInfo = ({ txInfo, parserKey }: Props) => {
-  const { txhash: hash, tx } = txInfo
+  const { txhash: hash, tx: txData } = txInfo
   const logs = txInfo?.logs
+
+  const tx = txData ? Tx.fromBinary(txData.value) : null
 
   let contents: Content[][] = []
   contents.push([{ title: "Tx Hash", content: <TxHash>{hash}</TxHash> }])
@@ -21,7 +28,7 @@ const TxInfo = ({ txInfo, parserKey }: Props) => {
     contents.push([
       {
         title: "Fee",
-        content: tx.auth_info.fee.amount.map((value) => {
+        content: tx.authInfo?.fee?.amount?.map((value: any) => {
           return formatAsset(
             value.amount.toString(),
             tokenInfos.get(value.denom)?.symbol

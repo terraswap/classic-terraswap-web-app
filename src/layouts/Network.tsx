@@ -1,5 +1,4 @@
 import React, { PropsWithChildren, useEffect } from "react"
-import { useWallet, WalletStatus } from "@terra-money/wallet-provider"
 import { ApolloProvider, ApolloClient, InMemoryCache } from "@apollo/client"
 import { DefaultOptions } from "@apollo/client"
 import useNetwork from "hooks/useNetwork"
@@ -7,6 +6,8 @@ import Loading from "components/Loading"
 import { useModal } from "components/Modal"
 import UnsupportedNetworkModal from "components/UnsupportedNetworkModal"
 import { AVAILABLE_CHAIN_ID } from "constants/networks"
+import { useWallet } from "libs/CosmesWalletProvider"
+import useConnectedWallet from "hooks/useConnectedWallet"
 
 export const DefaultApolloClientOptions: DefaultOptions = {
   watchQuery: { notifyOnNetworkStatusChange: true },
@@ -16,6 +17,7 @@ export const DefaultApolloClientOptions: DefaultOptions = {
 const Network: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const { status } = useWallet()
   const network = useNetwork()
+  const connectedWallet = useConnectedWallet()
   const unsupportedNetworkModal = useModal()
   const client = new ApolloClient({
     uri: network.mantle,
@@ -26,7 +28,12 @@ const Network: React.FC<PropsWithChildren<{}>> = ({ children }) => {
 
   useEffect(() => {
     const timerId = setTimeout(() => {
-      if (network && !AVAILABLE_CHAIN_ID.includes(network?.chainID)) {
+      if (
+        network &&
+        status === "connected" &&
+        connectedWallet &&
+        !AVAILABLE_CHAIN_ID.includes(network?.chainID)
+      ) {
         unsupportedNetworkModal.open()
       }
     }, 10)
@@ -34,11 +41,11 @@ const Network: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     return () => {
       clearTimeout(timerId)
     }
-  }, [unsupportedNetworkModal, network])
+  }, [unsupportedNetworkModal, network, connectedWallet, status])
 
   return (
     <>
-      {status === WalletStatus.INITIALIZING ? (
+      {status === "connecting" ? (
         <div
           style={{
             width: "100vw",
