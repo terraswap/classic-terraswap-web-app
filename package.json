@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@apollo/client": "^3.2.4",
-    "@goblinhunt/cosmes": "^0.0.71-ghunt.17",
+    "@goblinhunt/cosmes": "^0.0.71-ghunt.18",
     "@terra-dev/wallet-types": "^3.7.0",
     "@terra-money/log-finder": "^1.1.6",
     "@terra-money/log-finder-ruleset": "^3.0.0",

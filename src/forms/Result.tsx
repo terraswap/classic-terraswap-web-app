@@ -1,9 +1,8 @@
-import React, { useEffect, useRef, useState, useMemo } from "react"
+import { useEffect, useRef, useState } from "react"
 import classNames from "classnames/bind"
 
 import { MAX_TX_POLLING_RETRY, TX_POLLING_INTERVAL } from "constants/constants"
 import MESSAGE from "lang/MESSAGE.json"
-import { useNetwork } from "hooks"
 
 import SwapCard from "components/SwapCard"
 import Icon from "components/Icon"
@@ -20,16 +19,15 @@ import {
 } from "@terra-dev/wallet-types"
 import { AxiosError } from "axios"
 
-import { TxDescription } from "@terra-money/react-base-components"
+// Removed unused TxDescription import
 import { useLCDClient } from "layouts/WalletConnectProvider"
 import {
-  CosmwasmWasmV1MsgExecuteContract as MsgExecuteContract,
+  // Removed unused MsgExecuteContract import
   CosmosTxV1beta1GetTxResponse as TxResult,
   CosmosBaseAbciV1beta1TxResponse as TxResponse,
-  CosmosTxV1beta1Tx as Tx,
 } from "@goblinhunt/cosmes/protobufs"
-import {} from "@goblinhunt/cosmes/client"
-import { utf8 } from "@goblinhunt/cosmes/codec"
+// Removed empty import
+// Removed unused utf8 import
 export interface ResultProps {
   response?: TxResult
   error?:
@@ -43,7 +41,7 @@ export interface ResultProps {
   parserKey: string
 }
 
-// Define a type that matches the structure we need from TxInfo
+/*// Define a type that matches the structure we need from TxInfo
 interface TxInfo {
   txhash: string
   raw_log: string
@@ -66,7 +64,7 @@ interface TxInfo {
       msg: any[]
     }
   }
-}
+}*/
 
 const cx = classNames.bind(styles)
 
@@ -78,9 +76,7 @@ enum STATUS {
 }
 
 const Result = ({ response, error, onFailure, parserKey }: ResultProps) => {
-  const network = useNetwork()
   const { terra } = useLCDClient()
-  const { config } = terra
 
   // Extract txhash and raw_log from TxResult
   // In Cosmes, the structure is different from Terra.js
@@ -143,14 +139,13 @@ const Result = ({ response, error, onFailure, parserKey }: ResultProps) => {
     return () => {
       isDestroyed = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [txHash, terra.tx])
 
-  const tx = useMemo(() => {
+  /*const tx = useMemo(() => {
     if (!txInfo?.tx?.value) return null
     const tx = Tx.fromBinary(txInfo.tx.value)
     return tx
-  }, [txInfo])
+  }, [txInfo])*/
 
   /* render */
   const name = {

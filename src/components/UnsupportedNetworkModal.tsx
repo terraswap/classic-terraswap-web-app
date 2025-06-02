@@ -6,7 +6,6 @@ import Button from "./Button"
 import Modal from "./Modal"
 import { useWallet } from "libs/CosmesWalletProvider"
 import useChainOptions from "hooks/useChainOptions"
-import useConnectedWallet from "hooks/useConnectedWallet"
 
 const ModalContent = styled.div`
   width: 100%;
@@ -66,7 +65,6 @@ const UnsupportedNetworkModal: React.FC<{ isOpen?: boolean }> = ({
 }) => {
   const network = useNetwork()
   const { disconnect } = useWallet()
-  const wallet = useConnectedWallet()
   const chainOptions = useChainOptions()
 
   // Safely extract network information

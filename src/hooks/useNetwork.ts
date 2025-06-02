@@ -15,7 +15,7 @@ const useNetwork = () => {
       `${FINDER}/${chainID}/${path}/${address}`
 
     return { ...extNetwork, ...network, finder }
-  }, [extNetwork?.chainID])
+  }, [extNetwork])
 }
 
 export default useNetwork

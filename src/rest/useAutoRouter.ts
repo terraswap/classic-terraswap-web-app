@@ -478,6 +478,7 @@ const useAutoRouter = (params: Params) => {
       isCanceled = true
       clearTimeout(timerId)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, balance, queries, terra, walletAddress, from])
 
   const result = useMemo(() => {

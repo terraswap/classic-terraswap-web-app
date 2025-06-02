@@ -11,15 +11,15 @@ import {
   ULUNA,
   DEFAULT_TX_DEADLINE,
 } from "constants/constants"
-import { useNetwork, useContract, useAddress, useConnectModal } from "hooks"
+import { useAddress, useConnectModal } from "hooks"
 import { lookup } from "libs/parse"
-import { PriceKey, BalanceKey, AssetInfoKey } from "hooks/contractKeys"
+import { PriceKey, BalanceKey } from "hooks/contractKeys"
 
 import useSwapSelectToken from "./useSwapSelectToken"
 import SwapFormGroup from "./SwapFormGroup"
 import usePairs, { useLpTokenInfos, useTokenInfos } from "rest/usePairs"
 import useBalance from "rest/useBalance"
-import { times, ceil, div, lt, lte, floor } from "libs/math"
+import { times, div, lt, lte, floor } from "libs/math"
 import useGasPrice from "rest/useGasPrice"
 import { hasTaxToken } from "helpers/token"
 import { Type } from "pages/Swap"
@@ -30,7 +30,7 @@ import MESSAGE from "lang/MESSAGE.json"
 import useAPI from "rest/useAPI"
 import iconReload from "images/icon-reload.svg"
 import { useLCDClient } from "layouts/WalletConnectProvider"
-import { useWallet } from "../layouts/WalletConnectProvider"
+import { useWallet } from "libs/CosmesWalletProvider"
 import { useContractsAddress } from "hooks/useContractsAddress"
 import Disclaimer from "components/MigrationDisclaimer"
 import styles from "./SwapFormGroup.module.scss"
@@ -41,12 +41,6 @@ import {
   TendermintAbciTxResult as TxResult,
   CosmosBaseV1beta1Coin as Coin,
 } from "@goblinhunt/cosmes/protobufs"
-
-// Define a simple coin interface for internal use
-interface SimpleCoin {
-  denom: string
-  amount: string
-}
 
 enum Key {
   value1 = "value1",
@@ -59,18 +53,12 @@ enum Key {
 }
 
 const priceKey = PriceKey.PAIR
-const infoKey = AssetInfoKey.COMMISSION
 
 const Wrapper = styled.div`
   width: 100%;
   height: auto;
   position: relative;
 `
-
-const Warning = {
-  color: "red",
-  FontWeight: "bold",
-}
 
 const balanceKey = BalanceKey.LPSTAKABLE
 
@@ -88,7 +76,7 @@ function calculateProvideAssets(
 
 const MigrateForm = ({ type }: { type?: Type }) => {
   const { pairs: v1Pairs, isLoading: isV1PairsLoading } = usePairs("v1")
-  const { pairs: v2Pairs, isLoading: isV2PairsLoading } = usePairs("v2")
+  const { pairs: v2Pairs } = usePairs("v2")
 
   const connectModal = useConnectModal()
 
@@ -98,19 +86,18 @@ const MigrateForm = ({ type }: { type?: Type }) => {
   const tokenInfos = useTokenInfos()
   const lpTokenInfos = useLpTokenInfos()
 
-  const { getSymbol, isNativeToken } = useContractsAddress()
+  const { getSymbol } = useContractsAddress()
   const {
     loadTaxInfo,
     loadTaxRate,
     generateContractMessages: generateV1ContractMessages,
   } = useAPI("v1")
   const { generateContractMessages: generateV2ContractMessages } = useAPI("v2")
-  const { fee } = useNetwork()
-  const { find: findContract } = useContract()
   const walletAddress = useAddress()
   const wallet = useWallet()
   const { terra } = useLCDClient()
   const [residue, setResidue] = useState("0")
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [txSettings, setTxSettings] = useLocalStorage<SettingValues>(
     "settings",
     {
@@ -388,6 +375,7 @@ const MigrateForm = ({ type }: { type?: Type }) => {
         setResidue("0")
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     poolContract1,
     poolContract2,
@@ -401,11 +389,6 @@ const MigrateForm = ({ type }: { type?: Type }) => {
     poolDecimal1,
     poolDecimal2,
   ])
-
-  const feeValue = useMemo(
-    () => (gasPrice ? ceil(times(fee?.gas, gasPrice)) : ""),
-    [fee, gasPrice]
-  )
 
   const handleFailure = useCallback(() => {
     setTimeout(() => {
@@ -496,6 +479,7 @@ const MigrateForm = ({ type }: { type?: Type }) => {
         setResult(error as any)
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       generateV1ContractMessages,
       walletAddress,

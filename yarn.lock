@@ -1311,10 +1311,10 @@
   resolved "https://registry.npmjs.org/@eslint/js/-/js-8.57.1.tgz"
   integrity sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==
 
-"@goblinhunt/cosmes@^0.0.71-ghunt.17":
-  version "0.0.71-ghunt.17"
-  resolved "https://registry.npmjs.org/@goblinhunt/cosmes/-/cosmes-0.0.71-ghunt.17.tgz"
-  integrity sha512-cy9VoPptEZOo7nHuBw1ziNjflj1ZGd+ngcTM7rv7UE5yUhPp7VoHE13rki2OZXh0BsX+HWv/MzAqhRKMNn+ZWw==
+"@goblinhunt/cosmes@^0.0.71-ghunt.18":
+  version "0.0.71-ghunt.18"
+  resolved "https://registry.npmjs.org/@goblinhunt/cosmes/-/cosmes-0.0.71-ghunt.18.tgz"
+  integrity sha512-WsctYeaJlxgS253Z8Y751Ixb7j8Nr4bC80AaCPHnHkqSP+W6rfl4W3LyxWdJwowuv2ZhpniqsNF3rj0EYvVGzQ==
   dependencies:
     "@dao-dao/cosmiframe" "^1.0.0-rc.1"
 

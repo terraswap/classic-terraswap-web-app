@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { ReactComponent as Logo } from "../images/TerraswapLogo.svg"
 import Container from "../components/Container"
 import Connect from "./Connect"
 import styles from "./Header.module.scss"
 import { Link } from "react-router-dom"
 import Sidebar from "./Sidebar"
-import styled, { css } from "styled-components"
+import styled from "styled-components"
 import useMigration from "hooks/useMigration"
 
 const SidebarWrapper = styled.div`

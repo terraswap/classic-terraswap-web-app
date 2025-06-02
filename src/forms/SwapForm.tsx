@@ -16,13 +16,7 @@ import { lookup, decimal, toAmount } from "libs/parse"
 import calc from "helpers/calc"
 import { PriceKey, BalanceKey, AssetInfoKey } from "hooks/contractKeys"
 import Count from "components/Count"
-import {
-  validate as v,
-  placeholder,
-  step,
-  renderBalance,
-  calcTax,
-} from "./formHelpers"
+import { validate as v, placeholder, step, renderBalance } from "./formHelpers"
 import useSwapSelectToken from "./useSwapSelectToken"
 import SwapFormGroup from "./SwapFormGroup"
 import usePairs, { InitLP, useLpTokenInfos, useTokenInfos } from "rest/usePairs"
@@ -31,7 +25,6 @@ import { minus, gte, times, ceil, div } from "libs/math"
 import { TooltipIcon } from "components/Tooltip"
 import Tooltip from "lang/Tooltip.json"
 import useGasPrice from "rest/useGasPrice"
-import { hasTaxToken } from "helpers/token"
 import { Type } from "pages/Swap"
 import usePool from "rest/usePool"
 import { insertIf } from "libs/utils"
@@ -48,7 +41,7 @@ import { useModal } from "components/Modal"
 import Settings, { SettingValues } from "components/Settings"
 import useLocalStorage from "libs/useLocalStorage"
 import useAutoRouter from "rest/useAutoRouter"
-import { useLCDClient, useWallet } from "../layouts/WalletConnectProvider"
+import { useWallet } from "../layouts/WalletConnectProvider"
 import { useContractsAddress } from "hooks/useContractsAddress"
 import WarningModal from "components/Warning"
 import Disclaimer from "components/DisclaimerAgreement"
@@ -56,6 +49,7 @@ import { CosmosTxV1beta1GetTxResponse as GetTxResponse } from "@goblinhunt/cosme
 import BigNumber from "bignumber.js"
 import { UnsignedTx } from "@goblinhunt/cosmes/wallet"
 import { MsgExecuteContract } from "@goblinhunt/cosmes/client"
+import useConnectedWallet from "hooks/useConnectedWallet"
 
 enum Key {
   value1 = "value1",
@@ -107,7 +101,7 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
   const { find } = useContract()
   const walletAddress = useAddress()
   const wallet = useWallet()
-  const { terra } = useLCDClient()
+  const connectedWallet = useConnectedWallet()
   const settingsModal = useModal()
   const [txSettings, setTxSettings] = useLocalStorage<SettingValues>(
     "settings",
@@ -336,7 +330,7 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
     balance1
   )
 
-  const [tax, setTax] = useState<Coin[]>([])
+  const [tax] = useState<Coin[]>([])
 
   const spread = useMemo(() => {
     return tokenInfo2 && !isAutoRouterLoading && poolResult?.estimated
@@ -513,7 +507,18 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
     tokenInfos,
   ])
 
-  const { gasPrice } = useGasPrice(formData[Key.feeSymbol])
+  const { gasPrice } = useGasPrice(getSymbol(formData[Key.feeSymbol]))
+
+  useEffect(() => {
+    if (!connectedWallet) {
+      return
+    }
+    connectedWallet.setGasPrice({
+      amount: gasPrice,
+      denom: getSymbol(formData[Key.feeSymbol]),
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData, gasPrice, connectedWallet])
 
   const validateForm = async (
     key: Key.value1 | Key.value2 | Key.feeValue | Key.feeSymbol | Key.load,
@@ -773,7 +778,7 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
 
   const handleSubmit = useCallback<SubmitHandler<Partial<Record<Key, string>>>>(
     async (values) => {
-      const { value1, value2, feeSymbol, gasPrice } = values
+      const { value1, value2 } = values
       try {
         settingsModal.close()
 
@@ -823,6 +828,7 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
 
         let txOptions: UnsignedTx = {
           msgs,
+          memo: undefined,
         }
 
         const estimateResult = await wallet.estimateFee(txOptions)
@@ -841,10 +847,7 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
     [
       settingsModal,
       type,
-      getSymbol,
-      terra.tx,
       walletAddress,
-      tax,
       wallet,
       profitableQuery,
       generateContractMessages,

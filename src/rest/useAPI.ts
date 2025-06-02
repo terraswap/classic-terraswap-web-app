@@ -1,22 +1,4 @@
 import { useAddress, useNetwork } from "hooks"
-import {
-  UAUD as VAUD,
-  UCAD,
-  UCHF,
-  UCNY,
-  UEUR,
-  UGBP,
-  UHKD,
-  UINR,
-  UJPY,
-  UKRW,
-  ULUNA,
-  UMNT,
-  USDR,
-  USGD,
-  UTHB,
-  UUSD,
-} from "constants/constants"
 import { useCallback, useMemo } from "react"
 import useURL from "graphql/useURL"
 import terraswapConfig from "constants/terraswap.json"
@@ -24,12 +6,10 @@ import axios from "./request"
 import { Type } from "pages/Swap"
 import { AxiosError } from "axios"
 import { getDeadlineSeconds } from "libs/utils"
-import { useContractsAddress } from "hooks/useContractsAddress"
 import { useLCDClient } from "layouts/WalletConnectProvider"
 import { useQuery } from "react-query"
 import { MsgExecuteContract } from "@goblinhunt/cosmes/client"
 import { CosmosBaseV1beta1Coin } from "@goblinhunt/cosmes/protobufs"
-import Asset from "forms/Asset"
 
 interface ContractBalanceResponse {
   height: string
@@ -40,7 +20,7 @@ interface ContractBalance {
   balance: string
 }
 
-interface GasPriceResponse {
+export interface GasPriceResponse {
   uluna: string
   uusd: string
   usdr: string
@@ -156,9 +136,8 @@ export type ApiVersion = "v1" | "v2"
 
 const useAPI = (version: ApiVersion = "v2") => {
   const lcd = useLCDClient()
-  const { fcd, factory, service, serviceV1, name: networkName } = useNetwork()
+  const { factory, service, serviceV1, name: networkName } = useNetwork()
   const address = useAddress()
-  const { getSymbol } = useContractsAddress()
   const getURL = useURL()
   const apiHost = useMemo(
     () => (version === "v1" ? serviceV1 : service),

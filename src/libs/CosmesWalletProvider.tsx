@@ -44,6 +44,7 @@ import {
   UTHB,
 } from "constants/constants"
 import { TxRaw } from "@goblinhunt/cosmes/dist/protobufs/cosmos/tx/v1beta1/tx_pb"
+import { GasPriceResponse } from "rest/useAPI"
 // Define the shape of our wallet context
 interface WalletContextValue {
   network: {
@@ -57,6 +58,7 @@ interface WalletContextValue {
   disconnect: () => void
   post: (tx: UnsignedTx, fee: Fee) => Promise<any>
   estimateFee: (tx: UnsignedTx) => Promise<Fee>
+  setGasDenom: (gasDenom: string) => Promise<void>
   availableWallets: WalletName[]
   walletControllers: Record<WalletName, WalletController>
   installedWallets: WalletName[]
@@ -74,6 +76,7 @@ const WalletContext = createContext<WalletContextValue>({
   disconnect: () => {},
   post: async () => null,
   estimateFee: async () => new Fee(),
+  setGasDenom: async () => {},
   availableWallets: [],
   walletControllers: {} as Record<WalletName, WalletController>,
   installedWallets: [] as WalletName[],
@@ -199,42 +202,44 @@ export const useLCDClient = () => {
     }
   }, [network, networkInfo])
 
-  // Create a default terra object if it's null to avoid null checks throughout the app
-  const safeTerra = terra || {
-    chainID: network.chainID || "",
-    lcd: "",
-    rpc: "",
-    rpcClient: {} as any,
-    auth: {
-      accountInfo: async () => ({}),
-    },
-    bank: {
-      balance: async () => ({ toArray: () => [], get: () => null }),
-    },
-    treasury: {
-      taxRate: async () => "0.0",
-      taxCap: async () => ({ amount: "0" }),
-    },
-    config: {
-      gasAdjustment: 1.4,
-    },
-    tx: {
-      create: async () => ({
-        auth_info: {
-          fee: {
-            gas_limit: "200000",
-            amount: [],
+  return useMemo(() => {
+    // Create a default terra object if it's null to avoid null checks throughout the app
+    const safeTerra = terra || {
+      chainID: network.chainID || "",
+      lcd: "",
+      rpc: "",
+      rpcClient: {} as any,
+      auth: {
+        accountInfo: async () => ({}),
+      },
+      bank: {
+        balance: async () => ({ toArray: () => [], get: () => null }),
+      },
+      treasury: {
+        taxRate: async () => "0.0",
+        taxCap: async () => ({ amount: "0" }),
+      },
+      config: {
+        gasAdjustment: 1.4,
+      },
+      tx: {
+        create: async () => ({
+          auth_info: {
+            fee: {
+              gas_limit: "200000",
+              amount: [],
+            },
           },
-        },
-      }),
-      simulate: async () => ({ gas_used: "150000" }),
-      estimateFee: async () => ({ gas_limit: "200000", amount: [] }),
-      getTx: async () => null,
-      broadcastTx: async () => ({}),
-    },
-  }
+        }),
+        simulate: async () => ({ gas_used: "150000" }),
+        estimateFee: async () => ({ gas_limit: "200000", amount: [] }),
+        getTx: async () => null,
+        broadcastTx: async () => ({}),
+      },
+    }
 
-  return useMemo(() => ({ terra: safeTerra }), [safeTerra])
+    return { terra: safeTerra }
+  }, [terra, network.chainID])
 }
 
 // Export a hook to use the LCD URL
@@ -350,92 +355,154 @@ const CosmeWalletProvider: React.FC<PropsWithChildren<WalletProviderProps>> = ({
       setInstallableWallets(installableWallets)
     }
     updateWalletInstallStatus()
-  }, [availableWallets, walletControllers])
+  }, [availableWallets, walletControllers, walletNameToKey])
+
+  // Gas price loading function
+  const loadGasPrice = useCallback(
+    async (symbol: string) => {
+      try {
+        // Get the FCD URL from the network
+        const fcd =
+          network?.fcd ||
+          networks[network.chainID]?.fcd ||
+          "https://fcd.terra.dev"
+
+        // Make the API call to get gas prices
+        const url = `${fcd}/v1/txs/gas_prices`
+        const response = await axios.get(url)
+        const data = response.data as GasPriceResponse
+
+        // Determine the correct symbol name
+        const symbolName = symbol.startsWith("u")
+          ? symbol
+          : `u${symbol.toLowerCase()}`
+
+        // Check if the symbol is in the allowed list
+        if (
+          [
+            UUSD,
+            UKRW,
+            UMNT,
+            ULUNA,
+            USDR,
+            UAUD,
+            UCAD,
+            UCHF,
+            UCNY,
+            UEUR,
+            UGBP,
+            UHKD,
+            UINR,
+            UJPY,
+            USGD,
+            UTHB,
+          ].includes(symbolName)
+        ) {
+          return data[symbolName as keyof GasPriceResponse] || "0"
+        }
+
+        return "0"
+      } catch (error) {
+        console.error("Error loading gas price:", error)
+        return "0"
+      }
+    },
+    [network]
+  )
 
   // Store wallet connection info in localStorage
-  const saveWalletConnection = (
-    walletName: WalletName,
-    chainId: string,
-    walletType: WalletType
-  ) => {
-    try {
-      localStorage.setItem(
-        "terraswap_wallet_connection",
-        JSON.stringify({
-          walletName,
-          chainId,
-          walletType,
-          timestamp: Date.now(),
-        })
-      )
-    } catch (error) {
-      console.error("Failed to save wallet connection info:", error)
-    }
-  }
+  const saveWalletConnection = useCallback(
+    (walletName: WalletName, chainId: string, walletType: WalletType) => {
+      try {
+        localStorage.setItem(
+          "terraswap_wallet_connection",
+          JSON.stringify({
+            walletName,
+            chainId,
+            walletType,
+            timestamp: Date.now(),
+          })
+        )
+      } catch (error) {
+        console.error("Failed to save wallet connection info:", error)
+      }
+    },
+    []
+  )
 
   // Clear wallet connection info from localStorage
-  const clearWalletConnection = () => {
+  const clearWalletConnection = useCallback(() => {
     try {
       localStorage.removeItem("terraswap_wallet_connection")
     } catch (error) {
       console.error("Failed to clear wallet connection info:", error)
     }
-  }
+  }, [])
 
   // Connect to a wallet
-  const connect = async (walletName: WalletName, walletType: WalletType) => {
-    clearWalletConnection()
+  const connect = useCallback(
+    async (walletName: WalletName, walletType: WalletType) => {
+      clearWalletConnection()
 
-    try {
-      setStatus("connecting")
-      const controllerKey = walletNameToKey[walletName]
-      if (!controllerKey) {
-        throw new Error(`Wallet ${walletName} not supported`)
-      }
+      try {
+        setStatus("connecting")
+        const controllerKey = walletNameToKey[walletName]
+        if (!controllerKey) {
+          throw new Error(`Wallet ${walletName} not supported`)
+        }
 
-      const controller = walletControllers[controllerKey]
-      if (!controller) {
-        throw new Error(`Wallet ${walletName} not supported`)
-      }
+        const controller = walletControllers[controllerKey]
+        if (!controller) {
+          throw new Error(`Wallet ${walletName} not supported`)
+        }
 
-      const isInstalled = await controller.isInstalled(WalletType.EXTENSION)
-      if (!isInstalled) {
-        throw new Error(`Wallet ${walletName} is not installed`)
-      }
+        const isInstalled = await controller.isInstalled(WalletType.EXTENSION)
+        if (!isInstalled) {
+          throw new Error(`Wallet ${walletName} is not installed`)
+        }
 
-      const networkInfo = networks[network.chainID]
-      if (!networkInfo) {
-        throw new Error(`Network ${network.chainID} not supported`)
-      }
+        const networkInfo = networks[network.chainID]
+        if (!networkInfo) {
+          throw new Error(`Network ${network.chainID} not supported`)
+        }
 
-      const gasPrice = await loadGasPrice("uluna")
+        const gasPrice = await loadGasPrice("uluna")
 
-      const connectedWallets = await controller.connect(walletType, [
-        {
-          chainId: network.chainID,
-          rpc: networkInfo.rpc || networkInfo.lcd,
-          gasPrice: {
-            denom: "uluna",
-            amount: gasPrice,
+        const connectedWallets = await controller.connect(walletType, [
+          {
+            chainId: network.chainID,
+            rpc: networkInfo.rpc || networkInfo.lcd,
+            gasPrice: {
+              denom: "uluna",
+              amount: gasPrice,
+            },
           },
-        },
-      ])
+        ])
 
-      setWallets(connectedWallets)
-      setSelectedWallet(walletName)
-      setStatus("connected")
+        setWallets(connectedWallets)
+        setSelectedWallet(walletName)
+        setStatus("connected")
 
-      // Save connection info to localStorage
-      saveWalletConnection(walletName, network.chainID, walletType)
-    } catch (error) {
-      console.error("Failed to connect wallet:", error)
-      setStatus("disconnected")
-      throw error
-    }
-  }
+        // Save connection info to localStorage
+        saveWalletConnection(walletName, network.chainID, walletType)
+      } catch (error) {
+        console.error("Failed to connect wallet:", error)
+        setStatus("disconnected")
+        throw error
+      }
+    },
+    [
+      clearWalletConnection,
+      walletNameToKey,
+      walletControllers,
+      network,
+      loadGasPrice,
+      saveWalletConnection,
+    ]
+  )
 
   // Disconnect from the wallet
-  const disconnect = () => {
+  const disconnect = useCallback(() => {
     if (selectedWallet) {
       const controllerKey = walletNameToKey[selectedWallet]
       if (controllerKey) {
@@ -449,43 +516,71 @@ const CosmeWalletProvider: React.FC<PropsWithChildren<WalletProviderProps>> = ({
       // Clear connection info from localStorage
       clearWalletConnection()
     }
-  }
+  }, [
+    selectedWallet,
+    walletNameToKey,
+    walletControllers,
+    wallets,
+    clearWalletConnection,
+  ])
 
-  const estimateFee = async (tx: UnsignedTx) => {
-    const wallet = Array.from(wallets.values())[0]
-    if (!wallet) {
-      throw new Error("No wallet connected")
-    }
+  const estimateFee = useCallback(
+    async (tx: UnsignedTx) => {
+      const wallet = Array.from(wallets.values())[0]
+      if (!wallet) {
+        throw new Error("No wallet connected")
+      }
 
-    try {
-      // Use the RPC client to estimate fee
-      const result = await wallet.estimateFee(tx)
-      return result
-    } catch (error) {
-      console.error("Error estimating fee:", error)
-      return new Fee()
-    }
-  }
+      try {
+        // Use the RPC client to estimate fee
+        const result = await wallet.estimateFee(tx)
+        return result
+      } catch (error) {
+        console.error("Error estimating fee:", error)
+        return new Fee()
+      }
+    },
+    [wallets]
+  )
 
   // Post a transaction
-  const post = async (tx: UnsignedTx, fee: Fee) => {
-    if (status !== "connected" || !selectedWallet) {
-      throw new Error("Wallet not connected")
-    }
+  const post = useCallback(
+    async (tx: UnsignedTx, fee: Fee) => {
+      if (status !== "connected" || !selectedWallet) {
+        throw new Error("Wallet not connected")
+      }
 
-    const wallet = Array.from(wallets.values())[0]
-    if (!wallet) {
-      throw new Error("No wallet connected")
-    }
+      const wallet = Array.from(wallets.values())[0]
+      if (!wallet) {
+        throw new Error("No wallet connected")
+      }
 
-    try {
-      const result = await wallet.broadcastTxSync(tx, fee)
-      return result
-    } catch (error) {
-      console.error("Transaction failed:", error)
-      throw error
-    }
-  }
+      try {
+        const result = await wallet.broadcastTxSync(tx, fee)
+        return result
+      } catch (error) {
+        console.error("Transaction failed:", error)
+        throw error
+      }
+    },
+    [status, selectedWallet, wallets]
+  )
+
+  const setGasDenom = useCallback(
+    async (gasDenom: string) => {
+      const wallet = Array.from(wallets.values())[0]
+      if (!wallet) {
+        throw new Error("No wallet connected")
+      }
+
+      const gasPrice = await loadGasPrice(gasDenom)
+      wallet.setGasPrice({
+        amount: gasPrice,
+        denom: gasDenom,
+      })
+    },
+    [wallets, loadGasPrice]
+  )
 
   // Set up wallet disconnection handlers
   useEffect(() => {
@@ -507,6 +602,7 @@ const CosmeWalletProvider: React.FC<PropsWithChildren<WalletProviderProps>> = ({
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe())
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletControllers])
 
   // Auto-reconnect on page refresh
@@ -556,58 +652,7 @@ const CosmeWalletProvider: React.FC<PropsWithChildren<WalletProviderProps>> = ({
     }
   }, [status, network, connect, clearWalletConnection])
 
-  // Gas price loading function
-  const loadGasPrice = useCallback(
-    async (symbol: string) => {
-      try {
-        // Get the FCD URL from the network
-        const fcd =
-          network?.fcd ||
-          networks[network.chainID]?.fcd ||
-          "https://fcd.terra.dev"
-
-        // Make the API call to get gas prices
-        const url = `${fcd}/v1/txs/gas_prices`
-        const response = await axios.get(url)
-        const data = response.data
-
-        // Determine the correct symbol name
-        const symbolName = symbol.startsWith("u")
-          ? symbol
-          : `u${symbol.toLowerCase()}`
-
-        // Check if the symbol is in the allowed list
-        if (
-          [
-            UUSD,
-            UKRW,
-            UMNT,
-            ULUNA,
-            USDR,
-            UAUD,
-            UCAD,
-            UCHF,
-            UCNY,
-            UEUR,
-            UGBP,
-            UHKD,
-            UINR,
-            UJPY,
-            USGD,
-            UTHB,
-          ].includes(symbolName)
-        ) {
-          return data[symbolName] || "0"
-        }
-
-        return "0"
-      } catch (error) {
-        console.error("Error loading gas price:", error)
-        return "0"
-      }
-    },
-    [network]
-  )
+  // This section was moved up to resolve circular dependencies
 
   // Create the context value
   const contextValue = useMemo<WalletContextValue>(
@@ -619,6 +664,7 @@ const CosmeWalletProvider: React.FC<PropsWithChildren<WalletProviderProps>> = ({
       disconnect,
       post,
       estimateFee,
+      setGasDenom,
       availableWallets,
       walletControllers,
       installedWallets,
@@ -630,7 +676,13 @@ const CosmeWalletProvider: React.FC<PropsWithChildren<WalletProviderProps>> = ({
       network,
       wallets,
       status,
+      connect,
+      disconnect,
+      post,
+      estimateFee,
+      setGasDenom,
       availableWallets,
+      walletControllers,
       installedWallets,
       installableWallets,
       selectedWallet,
