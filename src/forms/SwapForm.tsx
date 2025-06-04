@@ -620,7 +620,7 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
   }, [maxFeeBalance, setValue])
 
   const watchCallback = useCallback<WatchObserver<Record<Key, string>>>(
-    (data, { name: watchName, value: watchValue, type: eventType }) => {
+    (data, { name: watchName, type: eventType }) => {
       // Skip processing if this is a non-event update for value1/value2
       if (!eventType && [Key.value1, Key.value2].includes(watchName as Key)) {
         return

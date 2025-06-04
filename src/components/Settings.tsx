@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import styles from "./Settings.module.scss"
-import classNames from "classnames/bind"
+import classNames from "classnames"
 
 type SettingKey = "slippage" | "custom" | "txDeadline"
 

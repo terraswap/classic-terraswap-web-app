@@ -2,7 +2,7 @@ import { is } from "ramda"
 import { DEFAULT_TX_DEADLINE } from "constants/constants"
 
 /* object */
-export const record = <T, V>(
+export const record = <T extends object, V>(
   object: T,
   value: V,
   skip?: (keyof T)[]

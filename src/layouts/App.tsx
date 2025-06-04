@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import routes from "routes"
 import { ContractProvider, useContractState } from "hooks/useContract"
-import { ThemeProvider } from "styled-components"
+import { ThemeProvider as ThemeProviderBase } from "styled-components"
 import variables from "styles/_export.module.scss"
 import { useAddress } from "hooks"
 import Header from "./Header"
@@ -10,6 +10,8 @@ import container from "components/Container"
 import styled from "styled-components"
 import usePairs from "rest/usePairs"
 import useMigration from "hooks/useMigration"
+
+const ThemeProvider = ThemeProviderBase as unknown as React.FC<any>
 
 const Wrapper = styled.div`
   display: flex;

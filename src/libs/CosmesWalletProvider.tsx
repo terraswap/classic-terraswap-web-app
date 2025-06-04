@@ -22,6 +22,8 @@ import {
   CosmosBankV1beta1QueryAllBalancesService as QueryAllBalancesService,
   CosmosTxV1beta1ServiceGetTxService as GetTxService,
   CosmosTxV1beta1Fee as Fee,
+  CosmosTxV1beta1GetTxResponse as GetTxResponse,
+  CosmosTxV1beta1TxRaw as TxRaw,
 } from "@goblinhunt/cosmes/protobufs"
 import networks from "constants/networks"
 import axios from "axios"
@@ -43,7 +45,6 @@ import {
   USGD,
   UTHB,
 } from "constants/constants"
-import { TxRaw } from "@goblinhunt/cosmes/dist/protobufs/cosmos/tx/v1beta1/tx_pb"
 import { GasPriceResponse } from "rest/useAPI"
 // Define the shape of our wallet context
 interface WalletContextValue {
@@ -136,15 +137,17 @@ export const useLCDClient = () => {
           if (!address) return
           try {
             // Use the RPC client to get balance info
+            // Use type assertion to work around type incompatibility
             const balances = await RpcClient.query(
               networkInfo?.rpc || "",
               QueryAllBalancesService,
               { address }
             )
+            // Add type assertion to access balances property
             return {
-              toArray: () => balances.balances || [],
+              toArray: () => (balances as any).balances || [],
               get: (denom: string) =>
-                balances?.balances?.find(
+                (balances as any)?.balances?.find(
                   (coin: { denom: string; amount: string }) =>
                     coin.denom === denom
                 ) || null,
@@ -171,7 +174,7 @@ export const useLCDClient = () => {
         gasAdjustment: 1.4,
       },
       tx: {
-        async getTx(txHash: string) {
+        async getTx(txHash: string): Promise<GetTxResponse | null> {
           try {
             // Use the RPC client to get transaction info
             const txInfo = await RpcClient.query(

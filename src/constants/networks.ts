@@ -1,13 +1,13 @@
-import { NetworkInfo as OrgNetworkInfo } from "@terra-dev/wallet-types"
-
 export const AVAILABLE_CHAIN_ID = ["columbus-5"]
 
 // Add required properties for Cosmes SDK compatibility
 type NetworkConfig = {
   URL?: string
-  chainID?: string
+  chainID: string
   gasAdjustment?: number
-  rpc?: string
+  name: string
+  lcd: string
+  rpc: string
   // Additional properties used in the app
   fcd?: string
   id?: string
@@ -27,7 +27,7 @@ type NetworkConfig = {
   }
 }
 
-type NetworkInfo = OrgNetworkInfo & NetworkConfig
+type NetworkInfo = NetworkConfig
 
 const networks: Record<string, NetworkInfo> = {
   "columbus-5": {

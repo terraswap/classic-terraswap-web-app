@@ -148,7 +148,10 @@ export const format: Formatter = (amount, contract_addr, config) => {
     : numeral(value).format(
         config?.integer
           ? "0,0"
-          : `0,0.[${placeholder(value.decimalPlaces())?.replace("0.", "")}]`
+          : `0,0.[${placeholder(value.decimalPlaces() || 0)?.replace(
+              "0.",
+              ""
+            )}]`
       )
 }
 

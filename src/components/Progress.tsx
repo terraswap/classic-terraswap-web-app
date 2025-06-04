@@ -1,5 +1,5 @@
 import React, { MouseEvent, ReactNode, useRef } from "react"
-import classNames from "classnames/bind"
+import classNames from "classnames"
 import { div } from "../libs/math"
 import { percent } from "../libs/num"
 import styles from "./Progress.module.scss"

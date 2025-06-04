@@ -11,12 +11,7 @@ import Button from "components/Button"
 import SwapTxHash from "./SwapTxHash"
 import SwapTxInfo from "./SwapTxInfo"
 import styles from "./Result.module.scss"
-import {
-  CreateTxFailed,
-  TxFailed,
-  TxUnspecifiedError,
-  UserDenied,
-} from "@terra-dev/wallet-types"
+
 import { AxiosError } from "axios"
 
 // Removed unused TxDescription import
@@ -30,13 +25,7 @@ import {
 // Removed unused utf8 import
 export interface ResultProps {
   response?: TxResult
-  error?:
-    | UserDenied
-    | CreateTxFailed
-    | TxFailed
-    | TxUnspecifiedError
-    | AxiosError
-    | Error
+  error?: AxiosError | Error
   onFailure: () => void
   parserKey: string
 }
@@ -178,7 +167,6 @@ const Result = ({ response, error, onFailure, parserKey }: ResultProps) => {
     raw_log ||
     (error as AxiosError)?.response?.data?.message ||
     error?.message ||
-    (error instanceof UserDenied && MESSAGE.Result.DENIED) ||
     JSON.stringify(error)
 
   const content = {

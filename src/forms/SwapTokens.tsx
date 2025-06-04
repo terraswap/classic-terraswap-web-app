@@ -1,5 +1,5 @@
 import { FC, useEffect, useMemo, useRef, useState } from "react"
-import classNames from "classnames/bind"
+import classNames from "classnames"
 import { useCombineKeys } from "../hooks"
 import { Config } from "./useSelectAsset"
 import SwapToken from "./SwapToken"
@@ -9,11 +9,16 @@ import { Type } from "../pages/Swap"
 import { tokenInfos } from "../rest/usePairs"
 import Loading from "components/Loading"
 import { SwapTokenAsset } from "./useSwapSelectToken"
-import { VariableSizeList, ListChildComponentProps } from "react-window"
+import {
+  VariableSizeList as VariableSizeListBase,
+  ListChildComponentProps,
+} from "react-window"
 import { useContractsAddress } from "hooks/useContractsAddress"
 import { isMobile } from "@goblinhunt/cosmes/wallet"
 
 const cx = classNames.bind(styles)
+
+const VariableSizeList = VariableSizeListBase as unknown as React.FC<any>
 
 interface Props extends Config {
   isFrom: boolean
@@ -127,7 +132,7 @@ const SwapTokens = ({
           <VariableSizeList
             height={listHeight}
             width="100%"
-            itemSize={(index) =>
+            itemSize={(index: number) =>
               isNativeToken(filteredAssetList?.[index].contract_addr || "")
                 ? 75
                 : 75
