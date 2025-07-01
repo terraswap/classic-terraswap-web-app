@@ -483,11 +483,11 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
         content: (
           <span
             title={profitableQuery?.tokenRoutes
-              ?.map((token) => tokenInfos.get(token)?.symbol)
+              ?.map((token: string) => tokenInfos.get(token)?.symbol)
               .join(" → ")}
           >
             {profitableQuery?.tokenRoutes
-              ?.map((token) => tokenInfos.get(token)?.symbol)
+              ?.map((token: string) => tokenInfos.get(token)?.symbol)
               .join(" → ")}
           </span>
         ),
@@ -626,81 +626,74 @@ const SwapForm = ({ type, tabs }: { type: Type; tabs: TabViewProps }) => {
         return
       }
 
-      // Only process swap-related calculations
-      if (type === Type.SWAP) {
+      // Only process swap-related calculations for value2 changes
+      if (type === Type.SWAP && watchName === Key.value2) {
         // Validate required inputs
         if (!from || !to) {
-          // console.log('Missing from/to tokens for swap calculation')
           return
         }
 
-        // Handle value1 or fee symbol changes
-        if ([Key.value1, Key.feeSymbol].includes(watchName as Key)) {
-          const simulatedAmount = profitableQuery?.simulatedAmount
+        const value2 = data[Key.value2]
 
-          // Only update value2 if we have a valid simulated amount
-          if (simulatedAmount) {
-            setValue(Key.value2, lookup(`${simulatedAmount}`, to))
-            trigger(Key.value2)
-            setIsWarningModalConfirmed(false)
-          } else if (data[Key.value1] && Number(data[Key.value1]) > 0) {
-            // If we have a value1 but no simulated amount, the router might still be loading
-            // console.log('Waiting for simulation data to calculate value2')
+        if (!value2 || Number(value2) <= 0) {
+          // Clear value1 if value2 is empty or zero
+          const currentValue1 = form.getValues(Key.value1)
+          if (currentValue1 !== "") {
+            setValue(Key.value1, "", { shouldValidate: false })
           }
+          return
         }
 
-        // Handle value2 changes
-        if (watchName === Key.value2) {
-          const value2 = data[Key.value2]
-          const simulatedAmount = profitableQuery?.simulatedAmount
-
-          if (!value2 || Number(value2) <= 0) {
-            // Clear value1 if value2 is empty or zero
-            setValue(Key.value1, "")
-            return
-          }
-
-          if (simulatedAmount) {
-            try {
-              // Convert value2 to the appropriate amount based on token decimals
-              const amount = toAmount(`${value2}`, to)
-              const simulatedAmountStr = `${simulatedAmount}`
-
-              // Prevent division by zero
-              if (simulatedAmountStr && simulatedAmountStr !== "0") {
-                const result = div(amount, simulatedAmountStr)
-                // Only update if we got a valid result
-                if (result && !isNaN(Number(result))) {
-                  setValue(Key.value1, lookup(result))
-                  trigger(Key.value1)
-                } else {
-                  // console.log('Invalid division result:', result)
-                }
-              } else {
-                // console.log('Cannot divide by zero or empty simulated amount')
-              }
-            } catch (error) {
-              // console.error('Error calculating swap values:', error)
-            }
-          } else {
-            // If we have a value2 but no simulated amount, the router might still be loading
-            // console.log('Waiting for simulation data to calculate value1')
-          }
-        }
+        // For value2 changes, we'll let the profitableQuery useEffect handle the calculation
+        // This prevents infinite loops between value1 and value2 updates
       }
     },
-    [profitableQuery, setValue, to, trigger, type, from]
+    [setValue, type, from, to, form]
   )
-
-  useEffect(() => {
-    watchCallback(form.getValues(), { name: Key.value1, type: "blur" })
-  }, [form, profitableQuery, watchCallback])
 
   useEffect(() => {
     watch()
     const subscription = watch(watchCallback)
     return () => subscription.unsubscribe()
-  }, [watch, watchCallback, profitableQuery])
+  }, [watch, watchCallback])
+
+  // Update value2 when profitableQuery changes (for swap type)
+  useEffect(() => {
+    if (type === Type.SWAP && profitableQuery?.simulatedAmount && from && to) {
+      const value1 = form.getValues(Key.value1)
+      const value2 = form.getValues(Key.value2)
+
+      if (value1 && Number(value1) > 0) {
+        const newValue2 = lookup(`${profitableQuery.simulatedAmount}`, to)
+
+        // Only update if the value is actually different
+        if (value2 !== newValue2) {
+          setValue(Key.value2, newValue2, { shouldValidate: false })
+          setIsWarningModalConfirmed(false)
+        }
+      } else if (value2 && Number(value2) > 0) {
+        // If value2 is set but value1 is empty, calculate value1 from value2
+        try {
+          const amount = toAmount(`${value2}`, to)
+          const simulatedAmountStr = `${profitableQuery.simulatedAmount}`
+
+          if (simulatedAmountStr && simulatedAmountStr !== "0") {
+            const result = div(amount, simulatedAmountStr)
+            if (result && !isNaN(Number(result))) {
+              const newValue1 = lookup(result)
+              const currentValue1 = form.getValues(Key.value1)
+
+              if (currentValue1 !== newValue1) {
+                setValue(Key.value1, newValue1, { shouldValidate: false })
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error calculating value1 from value2:", error)
+        }
+      }
+    }
+  }, [profitableQuery, type, from, to, form, setValue])
 
   useEffect(() => {
     switch (type) {

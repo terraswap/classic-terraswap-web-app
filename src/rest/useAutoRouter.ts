@@ -69,70 +69,75 @@ const useAutoRouter = (params: Params) => {
         beliefPrice?: string | number
       }
     ) => {
-      const msg = Array.isArray(_msg) ? _msg[0] : _msg
+      try {
+        const msg = Array.isArray(_msg) ? _msg[0] : _msg
 
-      // transform the inner msg to json
-      const msgProto = msg.toProto()
-      const msgJson = JSON.parse(utf8.encode(msgProto.msg))
+        // transform the inner msg to json
+        const msgProto = msg.toProto()
+        const msgJson = JSON.parse(utf8.encode(msgProto.msg))
 
-      if (msgJson?.swap) {
-        msgJson.swap.belief_price = `${beliefPrice}`
-      }
-      if (msgJson?.send?.msg?.swap) {
-        msgJson.send.msg.swap.belief_price = `${beliefPrice}`
-      }
-      if (msgJson?.send?.msg?.execute_swap_operations) {
-        msgJson.send.msg.execute_swap_operations.minimum_receive = parseInt(
-          `${minimumReceived}`,
-          10
-        ).toString()
-        if (isNativeToken(token || "")) {
-          msgProto.funds = [
-            coinFromString(toAmount(`${amount}`, token) + token),
-          ]
+        if (msgJson?.swap) {
+          msgJson.swap.belief_price = `${beliefPrice}`
+        }
+        if (msgJson?.send?.msg?.swap) {
+          msgJson.send.msg.swap.belief_price = `${beliefPrice}`
+        }
+        if (msgJson?.send?.msg?.execute_swap_operations) {
+          msgJson.send.msg.execute_swap_operations.minimum_receive = parseInt(
+            `${minimumReceived}`,
+            10
+          ).toString()
+          if (isNativeToken(token || "")) {
+            msgProto.funds = [
+              coinFromString(toAmount(`${amount}`, token) + token),
+            ]
+          }
+
+          msgJson.send.msg = btoa(JSON.stringify(msgJson.send.msg))
+        } else if (msgJson?.send?.msg) {
+          msgJson.send.msg = btoa(JSON.stringify(msgJson.send.msg))
+        } else if (msgJson?.send) {
+          msgJson.send.minimum_receive = parseInt(
+            `${minimumReceived}`,
+            10
+          ).toString()
+        }
+        if (msgJson?.execute_swap_operations) {
+          msgJson.execute_swap_operations.minimum_receive = parseInt(
+            `${minimumReceived}`,
+            10
+          ).toString()
+          msgJson.execute_swap_operations.offer_amount = toAmount(
+            `${amount}`,
+            token
+          )
+
+          if (isNativeToken(token || "")) {
+            msgProto.funds = [
+              coinFromString(toAmount(`${amount}`, token) + token),
+            ]
+          }
         }
 
-        msgJson.send.msg = btoa(JSON.stringify(msgJson.send.msg))
-      } else if (msgJson?.send?.msg) {
-        msgJson.send.msg = btoa(JSON.stringify(msgJson.send.msg))
-      } else if (msgJson?.send) {
-        msgJson.send.minimum_receive = parseInt(
-          `${minimumReceived}`,
-          10
-        ).toString()
+        // create new msg from msgJson
+        const newMsg = new MsgExecuteContract({
+          sender: msgProto.sender,
+          contract: msgProto.contract,
+          msg: msgJson,
+          funds: msgProto.funds,
+        })
+
+        return [newMsg]
+      } catch (error) {
+        console.error("Error in getMsgs:", error)
+        return []
       }
-      if (msgJson?.execute_swap_operations) {
-        msgJson.execute_swap_operations.minimum_receive = parseInt(
-          `${minimumReceived}`,
-          10
-        ).toString()
-        msgJson.execute_swap_operations.offer_amount = toAmount(
-          `${amount}`,
-          token
-        )
-
-        if (isNativeToken(token || "")) {
-          msgProto.funds = [
-            coinFromString(toAmount(`${amount}`, token) + token),
-          ]
-        }
-      }
-
-      // create new msg from msgJson
-      const newMsg = new MsgExecuteContract({
-        sender: msgProto.sender,
-        contract: msgProto.contract,
-        msg: msgJson,
-        funds: msgProto.funds,
-      })
-
-      return [newMsg]
     },
     [isNativeToken]
   )
 
   const queries = useMemo(() => {
-    if (!to || !value || !simulatedAmounts?.length) {
+    if (!to || !value || !simulatedAmounts?.length || !msgs?.length) {
       return []
     }
 
@@ -141,112 +146,125 @@ const useAutoRouter = (params: Params) => {
       .sort((a, b) => b.value - a.value)
       .map((item) => item.index)
 
-    return indexes.map((index) => {
-      const simulatedAmount = simulatedAmounts[index]
-      if (simulatedAmount < 0) {
-        return null
-      }
-      const msgValue = msgs[index]
-      // In Cosmes, MsgExecuteContract has a different structure
-      const msgObj = Array.isArray(msgValue) ? msgValue[0] : msgValue
-      // Access the message data through the toAmino method which is public
-      let msg: any = null
-      let sender = ""
-      let contract = ""
-      let funds: Coin[] = []
-      try {
-        if (typeof msgObj?.toAmino === "function") {
-          // If it's a Cosmes MsgExecuteContract, use toAmino to get the message
-          msg = msgObj.toAmino().value.msg
-          sender = msgObj.toAmino().value.sender
-          contract = msgObj.toAmino().value.contract
-          funds = msgObj.toAmino().value.funds
-        } else {
-          // Fallback for other message formats
-          // Use type assertion to bypass TypeScript checking
-          const protoMsg = msgObj?.toProto()
-          msg = protoMsg?.msg || msgObj
-          msg = JSON.parse(utf8.encode(msg))
-          sender = protoMsg?.sender
-          contract = protoMsg?.contract
-          funds = protoMsg?.funds
+    return indexes
+      .map((index) => {
+        const simulatedAmount = simulatedAmounts[index]
+        if (simulatedAmount < 0) {
+          return null
         }
-      } catch (error) {
-        console.error("Error accessing message data:", error)
-        msg = msgObj
-      }
-      const tokenRoutes: string[] = []
-      const operations: any[] =
-        msg?.execute_swap_operations?.operations ||
-        msg?.send?.msg?.execute_swap_operations?.operations
-      if (operations) {
-        operations.forEach((operation, index) => {
-          if (operation?.terra_swap?.offer_asset_info?.native_token?.denom) {
-            tokenRoutes.push(
-              operation?.terra_swap?.offer_asset_info?.native_token?.denom
-            )
-          } else if (
-            operation?.terra_swap?.offer_asset_info?.token?.contract_addr
-          ) {
-            tokenRoutes.push(
-              operation?.terra_swap?.offer_asset_info?.token?.contract_addr
-            )
-          } else if (operation?.native_swap?.offer_denom) {
-            tokenRoutes.push(operation?.native_swap?.offer_denom)
-          }
+        const msgValue = msgs[index]
+        if (!msgValue) {
+          return null
+        }
 
-          if (index >= operations.length - 1) {
-            if (operation?.terra_swap?.ask_asset_info?.native_token?.denom) {
+        // In Cosmes, MsgExecuteContract has a different structure
+        const msgObj = Array.isArray(msgValue) ? msgValue[0] : msgValue
+        // Access the message data through the toAmino method which is public
+        let msg: any = null
+        let sender = ""
+        let contract = ""
+        let funds: Coin[] = []
+        try {
+          if (typeof msgObj?.toAmino === "function") {
+            // If it's a Cosmes MsgExecuteContract, use toAmino to get the message
+            msg = msgObj.toAmino().value.msg
+            sender = msgObj.toAmino().value.sender
+            contract = msgObj.toAmino().value.contract
+            funds = msgObj.toAmino().value.funds
+          } else {
+            // Fallback for other message formats
+            // Use type assertion to bypass TypeScript checking
+            const protoMsg = msgObj?.toProto()
+            msg = protoMsg?.msg || msgObj
+            msg = JSON.parse(utf8.encode(msg))
+            sender = protoMsg?.sender
+            contract = protoMsg?.contract
+            funds = protoMsg?.funds
+          }
+        } catch (error) {
+          console.error("Error accessing message data:", error)
+          return null
+        }
+
+        // Skip if we don't have a valid sender
+        if (!sender) {
+          console.error("No valid sender found for message")
+          return null
+        }
+
+        const tokenRoutes: string[] = []
+        const operations: any[] =
+          msg?.execute_swap_operations?.operations ||
+          msg?.send?.msg?.execute_swap_operations?.operations
+        if (operations) {
+          operations.forEach((operation, index) => {
+            if (operation?.terra_swap?.offer_asset_info?.native_token?.denom) {
               tokenRoutes.push(
-                operation?.terra_swap?.ask_asset_info?.native_token?.denom
+                operation?.terra_swap?.offer_asset_info?.native_token?.denom
               )
             } else if (
-              operation?.terra_swap?.ask_asset_info?.token?.contract_addr
+              operation?.terra_swap?.offer_asset_info?.token?.contract_addr
             ) {
               tokenRoutes.push(
-                operation?.terra_swap?.ask_asset_info?.token?.contract_addr
+                operation?.terra_swap?.offer_asset_info?.token?.contract_addr
               )
-            } else if (operation?.native_swap?.ask_denom) {
-              tokenRoutes.push(operation?.native_swap?.ask_denom)
+            } else if (operation?.native_swap?.offer_denom) {
+              tokenRoutes.push(operation?.native_swap?.offer_denom)
             }
-          }
+
+            if (index >= operations.length - 1) {
+              if (operation?.terra_swap?.ask_asset_info?.native_token?.denom) {
+                tokenRoutes.push(
+                  operation?.terra_swap?.ask_asset_info?.native_token?.denom
+                )
+              } else if (
+                operation?.terra_swap?.ask_asset_info?.token?.contract_addr
+              ) {
+                tokenRoutes.push(
+                  operation?.terra_swap?.ask_asset_info?.token?.contract_addr
+                )
+              } else if (operation?.native_swap?.ask_denom) {
+                tokenRoutes.push(operation?.native_swap?.ask_denom)
+              }
+            }
+          })
+        }
+
+        const tokenInfo1 = tokenInfos.get(from)
+        const tokenInfo2 = tokenInfos.get(to)
+
+        const minimumReceived = calc.minimumReceived({
+          expectedAmount: `${simulatedAmount}`,
+          max_spread: String(slippageTolerance),
+          commission: find(AssetInfoKey.COMMISSION, to),
+          decimals: tokenInfo1?.decimals,
         })
-      }
 
-      const tokenInfo1 = tokenInfos.get(from)
-      const tokenInfo2 = tokenInfos.get(to)
+        const e = Math.pow(10, tokenInfo2?.decimals || 6)
 
-      const minimumReceived = calc.minimumReceived({
-        expectedAmount: `${simulatedAmount}`,
-        max_spread: String(slippageTolerance),
-        commission: find(AssetInfoKey.COMMISSION, to),
-        decimals: tokenInfo1?.decimals,
+        const newMessage = new MsgExecuteContract({
+          sender: sender,
+          contract: contract,
+          msg: msg,
+          funds: funds,
+        })
+
+        const formattedMsg = getMsgs(newMessage, {
+          amount: value,
+          minimumReceived,
+          token: from,
+          beliefPrice: `${decimal(div(times(value, e), simulatedAmount), 18)}`,
+        })
+
+        return {
+          msg: formattedMsg,
+          index,
+          simulatedAmount,
+          tokenRoutes,
+          price: div(times(value, e), simulatedAmount),
+        }
       })
-
-      const e = Math.pow(10, tokenInfo2?.decimals || 6)
-
-      const newMessage = new MsgExecuteContract({
-        sender: sender,
-        contract: contract,
-        msg: msg,
-        funds: funds,
-      })
-
-      const formattedMsg = getMsgs(newMessage, {
-        amount: value,
-        minimumReceived,
-        token: from,
-        beliefPrice: `${decimal(div(times(value, e), simulatedAmount), 18)}`,
-      })
-
-      return {
-        msg: formattedMsg,
-        index,
-        simulatedAmount,
-        tokenRoutes,
-        price: div(times(value, e), simulatedAmount),
-      }
-    })
+      .filter(Boolean)
   }, [
     to,
     value,
@@ -422,7 +440,12 @@ const useAutoRouter = (params: Params) => {
     }
   }, [value, from, msgs, querySimulate])
 
-  const [profitableQuery, setProfitableQuery] = useState(queries[0])
+  const [profitableQuery, setProfitableQuery] = useState<any>(null)
+
+  // Reset profitableQuery when queries change
+  useEffect(() => {
+    setProfitableQuery(null)
+  }, [queries])
 
   useEffect(() => {
     let isCanceled = false
@@ -449,11 +472,17 @@ const useAutoRouter = (params: Params) => {
         !account ||
         new BigNumber(balance || "0").lt(toAmount(`${value}`, from))
       ) {
-        setProfitableQuery(queries[0])
+        if (queries[0] && !isCanceled) {
+          setProfitableQuery(queries[0])
+        }
       } else {
         for await (const query of queries) {
+          if (isCanceled) {
+            return
+          }
           try {
             if (query?.msg) {
+              console.log("query?.msg", query?.msg)
               await wallet?.estimateFee({
                 msgs: query?.msg,
                 memo: undefined,
@@ -478,8 +507,7 @@ const useAutoRouter = (params: Params) => {
       isCanceled = true
       clearTimeout(timerId)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, balance, queries, terra, walletAddress, from])
+  }, [value, balance, queries, terra, walletAddress, from, wallet])
 
   const result = useMemo(() => {
     if (!from || !to || !type || !value) {
@@ -489,7 +517,7 @@ const useAutoRouter = (params: Params) => {
       isLoading,
       profitableQuery,
     }
-  }, [value, from, isLoading, profitableQuery, to, type])
+  }, [value, from, to, type, isLoading, profitableQuery])
 
   return result
 }

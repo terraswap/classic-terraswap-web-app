@@ -331,7 +331,7 @@ const useAPI = (version: ApiVersion = "v2") => {
           }
 
           const result = new MsgExecuteContract({
-            sender: address,
+            sender: address || query.sender,
             contract: item?.value?.contract,
             msg: msg,
             funds: msg?.provide_liquidity
