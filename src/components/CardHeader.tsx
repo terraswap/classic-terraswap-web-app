@@ -1,5 +1,5 @@
 import { FC, PropsWithChildren } from "react"
-import classNames from "classnames/bind"
+import classNames from "classnames"
 import Icon from "./Icon"
 import LoadingTitle from "./LoadingTitle"
 import { Props } from "./Card"

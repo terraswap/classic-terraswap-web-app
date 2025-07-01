@@ -1,11 +1,11 @@
-import { ConnectType, useWallet } from "@terra-money/wallet-provider"
-import React from "react"
 import { ReactNode } from "react"
 import styles from "./ConnectList.module.scss"
 import { useConnectModal } from "hooks"
 import SupportModal from "./SupportModal"
 import { useModal } from "components/Modal"
 import classNames from "classnames"
+import { useWallet, WalletLabel } from "libs/CosmesWalletProvider"
+import { isMobile, WalletType } from "@goblinhunt/cosmes/wallet"
 
 declare global {
   interface Window {
@@ -19,45 +19,75 @@ const size = { width: 30, height: "auto" }
 type Button = {
   label: string
   image: ReactNode
+  type: WalletType
   onClick: () => void
   isInstalled?: boolean
 }
 
 const ConnectList = () => {
-  const { availableConnections, availableInstallations, connect } = useWallet()
+  const { connect, installedWallets, installableWallets } = useWallet()
   const connectModal = useConnectModal()
   const supportModal = useModal()
+  const walletTypes: WalletType[] = isMobile()
+    ? [WalletType.WALLETCONNECT]
+    : [WalletType.EXTENSION, WalletType.WALLETCONNECT]
 
-  const buttons: Button[] = [
-    ...availableConnections
-      .filter(({ type }) => type !== ConnectType.READONLY)
-      .map(({ type, icon, name, identifier }) => ({
-        label: name,
-        image: <img src={icon} {...size} alt={name} />,
+  const buttons: Button[] = []
+  for (const walletType of walletTypes) {
+    buttons.push(
+      ...installedWallets.map((walletName) => ({
+        label: WalletLabel[walletName],
+        image: (
+          <img
+            src={"/wallet-icons/" + walletName + ".png"}
+            {...size}
+            alt={walletName}
+          />
+        ),
+        type: walletType,
         isInstalled: true,
         onClick: () => {
-          connect(type, identifier)
+          connect(walletName, walletType)
           connectModal.close()
         },
       })),
-    ...availableInstallations
-      .filter(({ type }) => type !== ConnectType.READONLY)
-      .map(({ icon, name, url }) => ({
-        label: "Install " + name,
-        image: <img src={icon} {...size} alt={name} />,
-        onClick: () => {
-          supportModal.setInfo(url, name)
-          supportModal.open()
-        },
-      })),
-  ]
+      ...installableWallets.map((walletName) => ({
+        label: "Install " + WalletLabel[walletName],
+        image: (
+          <img
+            src={"/wallet-icons/" + walletName + ".png"}
+            {...size}
+            alt={walletName}
+          />
+        ),
+        type: walletType,
+        ...(walletType === WalletType.WALLETCONNECT
+          ? {
+              isInstalled: true,
+              onClick: () => {
+                connect(walletName, walletType)
+                connectModal.close()
+              },
+            }
+          : {
+              onClick: () => {
+                supportModal.setInfo(
+                  "/wallet-icons/" + walletName + ".png",
+                  walletName
+                )
+                supportModal.open()
+              },
+            }),
+      }))
+    )
+  }
 
   return (
     <article className={styles.component}>
       <SupportModal {...supportModal} />
       <section>
         {Object.entries(buttons).map(
-          ([key, { label, image, isInstalled, onClick }]) => (
+          ([key, { label, image, isInstalled, type, onClick }]) => (
             <button
               className={classNames(
                 styles.button,
@@ -69,6 +99,13 @@ const ConnectList = () => {
               {image}
               &nbsp;&nbsp;
               {label}
+              {type === WalletType.WALLETCONNECT && (
+                <img
+                  src={"/wallet-icons/walletconnect.png"}
+                  {...size}
+                  alt="walletconnect"
+                />
+              )}
             </button>
           )
         )}

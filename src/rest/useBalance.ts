@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useAddress, useNetwork } from "../hooks"
 import useAPI from "./useAPI"
 import { useQuery } from "react-query"
-import { AccAddress } from "@terra-money/terra.js"
+import { bech32 } from "@goblinhunt/cosmes/codec"
 
 export default (contractAddress: string) => {
   const { name: networkName } = useNetwork()
@@ -23,7 +23,9 @@ export default (contractAddress: string) => {
     useQuery({
       queryKey: ["contractBalance", networkName, address, contractAddress],
       queryFn: async () => {
-        if (!AccAddress.validate(contractAddress)) {
+        if (!contractAddress) return null
+        if (!contractAddress.startsWith("terra")) return null
+        if (!bech32.decode(contractAddress as `${string}1${string}`)) {
           return null
         }
         const res = loadContractBalance(contractAddress)
@@ -39,8 +41,8 @@ export default (contractAddress: string) => {
         return
       }
       if (!contractAddress?.startsWith("terra")) {
-        if (denomBalances?.[0]) {
-          const coin = denomBalances[0].get(contractAddress)
+        if (denomBalances) {
+          const coin = denomBalances.get(contractAddress)
           if (coin && !isAborted) {
             setBalance(coin.amount.toString())
             return

@@ -15,8 +15,17 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./node_modules/@goblinhunt/cosmes/dist",
+      "./types"
+    ],
+    "paths": {
+      "@goblinhunt/cosmes/*": ["./node_modules/@goblinhunt/cosmes/dist/*"],
+      "typeutils": ["./types/typeutils"]
+    }
   },
-  "include": ["src", "src/**/*"],
+  "include": ["src", "src/**/*", "types/**/*"],
   "exclude": ["node_modules"]
 }

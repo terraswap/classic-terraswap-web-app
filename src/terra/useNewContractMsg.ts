@@ -1,4 +1,5 @@
-import { MsgExecuteContract, Coins, Coin } from "@terra-money/terra.js"
+import { CosmosBaseV1beta1Coin as Coin } from "@goblinhunt/cosmes/protobufs"
+import { MsgExecuteContract } from "@goblinhunt/cosmes/client"
 import { useAddress } from "../hooks"
 
 export default () => {
@@ -9,19 +10,21 @@ export default () => {
     msg: object,
     coins?: { denom: string; amount: string }[]
   ) => {
-    let resCoins = new Coins()
+    let resCoins: Coin[] = []
     if (coins === undefined) {
-      resCoins = new Coins([])
+      resCoins = []
     } else if (coins.length === 1) {
-      resCoins = new Coins([Coin.fromData(coins[0])])
+      resCoins = [coins[0] as Coin]
     } else if (coins.length === 2) {
-      resCoins = new Coins([
-        Coin.fromData(coins[0]).toIntCoin(),
-        Coin.fromData(coins[1]).toIntCoin(),
-      ])
+      resCoins = [coins[0] as Coin, coins[1] as Coin]
     }
 
-    return new MsgExecuteContract(sender, contract, msg, resCoins)
+    return new MsgExecuteContract({
+      sender,
+      contract,
+      msg,
+      funds: resCoins,
+    })
   }
 
   // return (

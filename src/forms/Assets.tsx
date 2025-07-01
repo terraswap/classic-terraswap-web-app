@@ -1,5 +1,5 @@
 import React, { useState } from "react"
-import classNames from "classnames/bind"
+import classNames from "classnames"
 import { UST, UUSD } from "constants/constants"
 import { gt } from "libs/math"
 import { insertIf } from "libs/utils"

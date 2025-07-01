@@ -1,7 +1,33 @@
-import { NetworkInfo as OrgNetworkInfo } from "@terra-dev/wallet-types"
-
 export const AVAILABLE_CHAIN_ID = ["columbus-5"]
-type NetworkInfo = OrgNetworkInfo & NetworkConfig
+
+// Add required properties for Cosmes SDK compatibility
+type NetworkConfig = {
+  URL?: string
+  chainID: string
+  gasAdjustment?: number
+  name: string
+  lcd: string
+  rpc: string
+  // Additional properties used in the app
+  fcd?: string
+  id?: string
+  contract?: string
+  swap?: string
+  mantle?: string
+  stats?: string
+  factory?: string
+  service?: string
+  serviceV1?: string
+  dashboard?: string
+  router?: string
+  fee?: {
+    gasPrice: string
+    amount: string
+    gas: string
+  }
+}
+
+type NetworkInfo = NetworkConfig
 
 const networks: Record<string, NetworkInfo> = {
   "columbus-5": {
@@ -26,6 +52,10 @@ const networks: Record<string, NetworkInfo> = {
       process.env.REACT_APP_MAINNET_DASHBOARD_URL ||
       "https://api-classic.terraswap.io/v2/dashboard",
     router: "terra1g3zc8lwwmkrm0cz9wkgl849pdqaw6cq8lh7872",
+    // Add required properties for Cosmes SDK compatibility
+    URL: "https://terra-classic-lcd.publicnode.com",
+    rpc: "https://terra-classic-rpc.publicnode.com",
+    gasAdjustment: 1.4,
   },
 }
 

@@ -36,6 +36,7 @@ import {
 } from "constants/constants"
 import { tokenInfos } from "rest/usePairs"
 import { placeholder } from "forms/formHelpers"
+import { CosmosBaseV1beta1Coin as Coin } from "@goblinhunt/cosmes/protobufs"
 
 type Formatter = (
   amount?: string | number,
@@ -147,7 +148,10 @@ export const format: Formatter = (amount, contract_addr, config) => {
     : numeral(value).format(
         config?.integer
           ? "0,0"
-          : `0,0.[${placeholder(value.decimalPlaces())?.replace("0.", "")}]`
+          : `0,0.[${placeholder(value.decimalPlaces() || 0)?.replace(
+              "0.",
+              ""
+            )}]`
       )
 }
 
@@ -181,4 +185,16 @@ export const formatMoney = (num: number, fix = 2) => {
   return units[Math.floor(unit / 3) - 2]
     ? formatNumber(x.toFixed(fix)) + units[Math.floor(unit / 3) - 2]
     : formatNumber(num.toFixed(fix))
+}
+
+export const coinFromString = (str: string) => {
+  // extract from 12345xxxxx, xxxxx can be any string
+  const match = str.match(/^(\d+)(.*)$/)
+  if (match) {
+    return {
+      amount: match[1],
+      denom: match[2],
+    } as Coin
+  }
+  return undefined
 }

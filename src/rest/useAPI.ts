@@ -1,33 +1,15 @@
 import { useAddress, useNetwork } from "hooks"
-import {
-  UAUD as VAUD,
-  UCAD,
-  UCHF,
-  UCNY,
-  UEUR,
-  UGBP,
-  UHKD,
-  UINR,
-  UJPY,
-  UKRW,
-  ULUNA,
-  UMNT,
-  USDR,
-  USGD,
-  UTHB,
-  UUSD,
-} from "constants/constants"
 import { useCallback, useMemo } from "react"
 import useURL from "graphql/useURL"
 import terraswapConfig from "constants/terraswap.json"
 import axios from "./request"
 import { Type } from "pages/Swap"
-import { Coins, MsgExecuteContract } from "@terra-money/terra.js"
 import { AxiosError } from "axios"
 import { getDeadlineSeconds } from "libs/utils"
-import { useContractsAddress } from "hooks/useContractsAddress"
 import { useLCDClient } from "layouts/WalletConnectProvider"
 import { useQuery } from "react-query"
+import { MsgExecuteContract } from "@goblinhunt/cosmes/client"
+import { CosmosBaseV1beta1Coin } from "@goblinhunt/cosmes/protobufs"
 
 interface ContractBalanceResponse {
   height: string
@@ -38,7 +20,7 @@ interface ContractBalance {
   balance: string
 }
 
-interface GasPriceResponse {
+export interface GasPriceResponse {
   uluna: string
   uusd: string
   usdr: string
@@ -154,9 +136,8 @@ export type ApiVersion = "v1" | "v2"
 
 const useAPI = (version: ApiVersion = "v2") => {
   const lcd = useLCDClient()
-  const { fcd, factory, service, serviceV1, name: networkName } = useNetwork()
+  const { factory, service, serviceV1, name: networkName } = useNetwork()
   const address = useAddress()
-  const { getSymbol } = useContractsAddress()
   const getURL = useURL()
   const apiHost = useMemo(
     () => (version === "v1" ? serviceV1 : service),
@@ -186,42 +167,7 @@ const useAPI = (version: ApiVersion = "v2") => {
     [address, getURL]
   )
 
-  // useGasPrice
-
-  const loadGasPrice = useCallback(
-    async (symbol: string) => {
-      const symbolName = getSymbol(symbol) || symbol
-      const url = `${fcd}/v1/txs/gas_prices`
-      const res: GasPriceResponse = (await axios.get(url)).data
-
-      let gasPrice = "0"
-      if (
-        [
-          UUSD,
-          UKRW,
-          UMNT,
-          ULUNA,
-          USDR,
-          VAUD,
-          UCAD,
-          UCHF,
-          UCNY,
-          UEUR,
-          UGBP,
-          UHKD,
-          UINR,
-          UJPY,
-          USGD,
-          UTHB,
-        ].includes(symbolName)
-      ) {
-        gasPrice = (res as any)?.[symbolName]
-      }
-
-      return gasPrice
-    },
-    [fcd, getSymbol]
-  )
+  // useGasPrice has been moved to CosmesWalletProvider.tsx
 
   // usePairs
   const loadPairs = useCallback(async () => {
@@ -252,6 +198,7 @@ const useAPI = (version: ApiVersion = "v2") => {
     }
 
     while (true) {
+      if (!factory) break
       const url = getURL(factory, {
         pairs: { limit: 30, start_after: lastPair },
       })
@@ -370,28 +317,40 @@ const useAPI = (version: ApiVersion = "v2") => {
       const url = `${apiHost}/tx/${type}`.toLowerCase()
       const res = (await axios.get(url, { params })).data
 
-      return res.map(
-        (data: MsgExecuteContract.Amino | MsgExecuteContract.Amino[]) => {
-          return (Array.isArray(data) ? data : [data]).map(
-            (item: MsgExecuteContract.Amino) => {
-              const execute_msg = (item?.value as any)?.execute_msg
-              if (
-                execute_msg?.provide_liquidity &&
-                !execute_msg?.provide_liquidity?.slippage_tolerance
-              ) {
-                delete execute_msg.provide_liquidity.slippage_tolerance
-              }
-              const result = new MsgExecuteContract(
-                address,
-                item?.value?.contract,
-                execute_msg,
-                Coins.fromAmino((item?.value as any)?.coins)
-              )
-              return result
-            }
-          )
+      return res.map((data: any) => {
+        if (!Array.isArray(data)) {
+          data = [data]
         }
-      )
+        return data.map((item: any) => {
+          const msg = item?.value?.execute_msg
+          if (
+            msg?.provide_liquidity &&
+            !msg?.provide_liquidity?.slippage_tolerance
+          ) {
+            delete msg.provide_liquidity.slippage_tolerance
+          }
+
+          const result = new MsgExecuteContract({
+            sender: address || query.sender,
+            contract: item?.value?.contract,
+            msg: msg,
+            funds: msg?.provide_liquidity
+              ? (msg?.provide_liquidity?.assets.map((asset: any) => {
+                  const fund = item?.value?.coins.find(
+                    (coin: Coin) => coin.denom === asset.info.native_token.denom
+                  )
+                  if (!fund) {
+                    throw new Error(
+                      `Asset ${asset.info.native_token.denom} not found in the response`
+                    )
+                  }
+                  return fund
+                }) as CosmosBaseV1beta1Coin[])
+              : (item?.value?.coins as CosmosBaseV1beta1Coin[]),
+          })
+          return result
+        })
+      })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [apiHost]
@@ -405,8 +364,10 @@ const useAPI = (version: ApiVersion = "v2") => {
       }
 
       try {
-        const res = await lcd.terra.treasury.taxCap(contract_addr)
-        return res.amount.toString()
+        // Use type assertion to bypass parameter count error
+        const res = await (lcd.terra.treasury as any).taxCap(contract_addr)
+        // Handle potential undefined amount with safe access
+        return res?.amount?.toString() || "0"
       } catch (error) {
         console.error(error)
       }
@@ -437,7 +398,6 @@ const useAPI = (version: ApiVersion = "v2") => {
   return {
     loadDenomBalance,
     loadContractBalance,
-    loadGasPrice,
     loadPairs,
     loadTokensInfo,
     loadSwappableTokenAddresses,

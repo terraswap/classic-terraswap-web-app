@@ -2,9 +2,9 @@ import React, { ReactNode, useRef } from "react"
 import classNames from "classnames"
 import { truncate } from "../libs/text"
 import { useAddress, useNetwork } from "../hooks"
-import { useWallet } from "@terra-money/wallet-provider"
 import styles from "./Connected.module.scss"
 import Icon from "../components/Icon"
+import { useWallet } from "libs/CosmesWalletProvider"
 
 interface Props {
   className: string

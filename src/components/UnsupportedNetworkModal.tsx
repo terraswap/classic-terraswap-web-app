@@ -1,10 +1,11 @@
-import { useChainOptions, useWallet } from "@terra-money/wallet-provider"
 import { AVAILABLE_CHAIN_ID } from "constants/networks"
 import { useNetwork } from "hooks"
 import { useMemo } from "react"
 import styled from "styled-components"
 import Button from "./Button"
 import Modal from "./Modal"
+import { useWallet } from "libs/CosmesWalletProvider"
+import useChainOptions from "hooks/useChainOptions"
 
 const ModalContent = styled.div`
   width: 100%;
@@ -54,25 +55,60 @@ const ModalTitle = styled.div`
   margin-bottom: 30px;
 `
 
+interface NetworkDisplay {
+  name: string
+  chainID: string
+}
+
 const UnsupportedNetworkModal: React.FC<{ isOpen?: boolean }> = ({
   isOpen = false,
 }) => {
   const network = useNetwork()
   const { disconnect } = useWallet()
   const chainOptions = useChainOptions()
-  const availableNetworks = useMemo(() => {
-    if (chainOptions?.walletConnectChainIds) {
-      const keys = Object.keys(chainOptions?.walletConnectChainIds).map(Number)
-      return keys
-        .filter((key) =>
-          AVAILABLE_CHAIN_ID.includes(
-            chainOptions?.walletConnectChainIds[key]?.chainID
-          )
-        )
-        .map((key) => chainOptions?.walletConnectChainIds[key])
+
+  // Safely extract network information
+  const networkName =
+    typeof network?.name === "string" ? network.name : "unknown"
+  const networkChainID =
+    typeof network?.chainID === "string" ? network.chainID : "unknown"
+
+  const availableNetworks = useMemo<NetworkDisplay[]>(() => {
+    if (!chainOptions?.walletConnectChainIds) return []
+
+    const result: NetworkDisplay[] = []
+
+    try {
+      const keys = Object.keys(chainOptions.walletConnectChainIds).map(Number)
+
+      for (const key of keys) {
+        const networkInfo = chainOptions.walletConnectChainIds[key]
+        if (!networkInfo) continue
+
+        const chainId = networkInfo.chainID
+        if (!chainId || !AVAILABLE_CHAIN_ID.includes(chainId)) continue
+
+        result.push({
+          name: String(networkInfo.name || ""),
+          chainID: String(chainId || ""),
+        })
+      }
+    } catch (error) {
+      console.error("Error processing network options:", error)
     }
-    return []
+
+    return result
   }, [chainOptions])
+
+  const formattedNetworks = useMemo(() => {
+    return availableNetworks
+      .map((network) => {
+        return `${network.name}(${network.chainID})`
+      })
+      .reverse()
+      .join(", ")
+  }, [availableNetworks])
+
   return (
     <Modal isOpen={isOpen} close={() => {}} open={() => {}}>
       <ModalContent>
@@ -81,7 +117,7 @@ const UnsupportedNetworkModal: React.FC<{ isOpen?: boolean }> = ({
           <div style={{ marginBottom: 20 }}>
             Your wallet is connected to{" "}
             <b>
-              {network.name}({network.chainID})
+              {networkName}({networkChainID})
             </b>
             . <br />
             Please change your network setting of the wallet to
@@ -94,15 +130,7 @@ const UnsupportedNetworkModal: React.FC<{ isOpen?: boolean }> = ({
                 fontWeight: 700,
               }}
             >
-              {availableNetworks
-                .map(
-                  (availableNetwork) =>
-                    `${availableNetwork.name}(${
-                      availableNetwork.chainID?.split("-")?.[0]
-                    })`
-                )
-                .reverse()
-                .join(", ")}
+              {formattedNetworks}
             </div>
           </div>
           <Button
@@ -133,7 +161,7 @@ const UnsupportedNetworkModal: React.FC<{ isOpen?: boolean }> = ({
           >
             Disconnect
           </Button>
-          {network?.name !== "classic" && (
+          {networkName !== "classic" && (
             <div style={{ color: "#aaaaaa", fontSize: 12 }}>
               Or
               <br />

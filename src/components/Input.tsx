@@ -8,7 +8,9 @@ const Wrapper = styled.div`
   display: inline-block;
 `
 
-const InputElement = styled.input`
+const InputElement = styled.input.attrs({
+  required: true,
+})`
   padding: 6px 16px;
   margin: 0;
   border: 1px solid #0222ba;
@@ -23,8 +25,6 @@ const InputElement = styled.input`
     }
   }
 `
-
-InputElement.defaultProps = { required: true }
 
 const Placeholder = styled.div`
   color: #0222ba;
