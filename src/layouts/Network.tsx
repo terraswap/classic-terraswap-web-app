@@ -2,7 +2,6 @@ import React, { PropsWithChildren, useEffect } from "react"
 import { ApolloProvider, ApolloClient, InMemoryCache } from "@apollo/client"
 import { DefaultOptions } from "@apollo/client"
 import useNetwork from "hooks/useNetwork"
-import Loading from "components/Loading"
 import { useModal } from "components/Modal"
 import UnsupportedNetworkModal from "components/UnsupportedNetworkModal"
 import { AVAILABLE_CHAIN_ID } from "constants/networks"
@@ -45,23 +44,9 @@ const Network: React.FC<PropsWithChildren<{}>> = ({ children }) => {
 
   return (
     <>
-      {status === "connecting" ? (
-        <div
-          style={{
-            width: "100vw",
-            height: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Loading />
-        </div>
-      ) : (
-        <ApolloProvider client={client}>
-          {!unsupportedNetworkModal.isOpen && children}
-        </ApolloProvider>
-      )}
+      <ApolloProvider client={client}>
+        {!unsupportedNetworkModal.isOpen && children}
+      </ApolloProvider>
       <UnsupportedNetworkModal isOpen={unsupportedNetworkModal.isOpen} />
     </>
   )
