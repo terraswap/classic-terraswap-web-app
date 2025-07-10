@@ -335,17 +335,19 @@ const useAPI = (version: ApiVersion = "v2") => {
             contract: item?.value?.contract,
             msg: msg,
             funds: msg?.provide_liquidity
-              ? (msg?.provide_liquidity?.assets.map((asset: any) => {
-                  const fund = item?.value?.coins.find(
-                    (coin: Coin) => coin.denom === asset.info.native_token.denom
-                  )
-                  if (!fund) {
-                    throw new Error(
-                      `Asset ${asset.info.native_token.denom} not found in the response`
+              ? (msg?.provide_liquidity?.assets
+                  .filter((asset: any) => asset.info.native_token)
+                  .map((asset: any) => {
+                    const fund = item?.value?.coins.find(
+                      (coin: Coin) => coin.denom === asset.info.native_token.denom
                     )
-                  }
-                  return fund
-                }) as CosmosBaseV1beta1Coin[])
+                    if (!fund) {
+                      throw new Error(
+                        `Asset ${asset.info.native_token.denom} not found in the response`
+                      )
+                    }
+                    return fund
+                  }) as CosmosBaseV1beta1Coin[])
               : (item?.value?.coins as CosmosBaseV1beta1Coin[]),
           })
           return result
